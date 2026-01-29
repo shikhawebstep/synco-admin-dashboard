@@ -8,7 +8,7 @@ const ProgressBar = ({ uploadProgress }) => {
       {/* Header */}
       <div className="flex justify-between items-center mb-2">
         <span className="text-sm font-semibold text-[#000]">
-          Uploading File
+          Uploading 
         </span>
 
         <span className="px-3 py-1 text-xs font-bold rounded-full 
