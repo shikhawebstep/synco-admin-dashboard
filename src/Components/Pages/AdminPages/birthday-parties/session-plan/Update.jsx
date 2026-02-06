@@ -313,7 +313,7 @@ export default function BirthdayUpdate() {
             if (!token) return;
 
             try {
-                // Show loading Swal
+                // Show loading 
                 showLoading("Duplicating Exercise...");
 
                 const response = await fetch(

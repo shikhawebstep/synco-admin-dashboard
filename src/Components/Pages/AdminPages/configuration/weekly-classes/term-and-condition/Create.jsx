@@ -145,12 +145,7 @@ const Create = () => {
                 if (groupId) {
                     // Update existing group
                     await updateTermGroup(groupId, payload);
-                    // Swal.fire({
-                    //     icon: 'success',
-                    //     title: 'Group Updated',
-                    //     text: 'Term group updated successfully',
-                    //     confirmButtonColor: '#3085d6'
-                    // });
+                 
                 } else {
                     // Create new group
                     const createdGroup = await createTermGroup(payload);

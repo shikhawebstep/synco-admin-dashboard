@@ -15,6 +15,7 @@ import {
     Tooltip,
 } from "recharts";
 import * as XLSX from "xlsx";
+import { showError } from "../../../../../utils/swalHelper";
 
 
 const dashboardData = {
@@ -149,11 +150,8 @@ export default function HolidayReports() {
 
             const result = await response.json();
             if (!response.status) {
-                Swal.fire({
-                    icon: "error",
-                    title: "Fetch Failed",
-                    text: result.message || "Failed to fetch report data.",
-                });
+                showError("Fetch Failed", result.message || "Failed to fetch report data.");
+               
                 return;
             }
 
@@ -165,11 +163,8 @@ export default function HolidayReports() {
             setCampsRegistration(result.data.campsRegistration || {});
             setEnrolledStudents(result.data.enrolledStudents || {});
         } catch (error) {
-            Swal.fire({
-                icon: "error",
-                title: "Fetch Failed",
-                text: error.message,
-            });
+           showError("Fetch Failed", error.message);
+           
         } finally {
             setLoading(false);
         }
@@ -216,11 +211,9 @@ export default function HolidayReports() {
             const result = await response.json();
 
             if (!result.status) {
-                Swal.fire({
-                    icon: "error",
-                    title: "Fetch Failed",
-                    text: result.message || "Failed to fetch report data.",
-                });
+                
+                showError("Fetch Failed", result.message || "Failed to fetch report data.");
+              
                 return;
             }
 
@@ -232,11 +225,8 @@ export default function HolidayReports() {
             setCampsRegistration(result.data.campsRegistration || {});
             setEnrolledStudents(result.data.enrolledStudents || {});
         } catch (error) {
-            Swal.fire({
-                icon: "error",
-                title: "Fetch Failed",
-                text: error.message,
-            });
+            showError("Fetch Failed", error.message || "An error occurred while fetching report data.");
+           
         } finally {
             setLoading(false);
         }

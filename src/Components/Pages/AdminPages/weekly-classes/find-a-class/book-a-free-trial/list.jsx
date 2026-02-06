@@ -35,6 +35,7 @@ const List = () => {
     useEffect(() => {
         window.scrollTo(0, 0); // scrolls to top on mount
     }, []);
+
     const [expression, setExpression] = useState('');
     const [result, setResult] = useState('');
     const navigate = useNavigate();
@@ -50,7 +51,7 @@ const List = () => {
     const [isOpen, setIsOpen] = useState(false);
     // console.log('classId', classId)
     const { fetchFindClassID, singleClassSchedulesOnly, loading } = useClassSchedule() || {};
-    const { createBookFreeTrials } = useBookFreeTrial()
+    const { createBookFreeTrials, isBooked, setIsBooked } = useBookFreeTrial()
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { keyInfoData, fetchKeyInfo } = useMembers();
     const { adminInfo, setAdminInfo } = useNotification();
@@ -142,10 +143,13 @@ const List = () => {
     ];
 
     const hearOptions = [
-        { value: "Social Media", label: "Social Media" },
+        { value: "Google", label: "Google" },
+        { value: "Facebook", label: "Facebook" },
+        { value: "Instagram", label: "Instagram" },
         { value: "Friend", label: "Friend" },
         { value: "Flyer", label: "Flyer" },
     ];
+
     function htmlToArray(html) {
         const tempDiv = document.createElement("div");
         tempDiv.innerHTML = html;
@@ -415,6 +419,8 @@ const List = () => {
             age: '',
             gender: '',
             medicalInformation: '',
+            selectedClassId: null,
+            selectedClassData: null
             // Add other fields if needed
         },
     ]);
@@ -424,7 +430,26 @@ const List = () => {
         updatedStudents[index][field] = value;
         setStudents(updatedStudents);
     };
+    console.log('singleClassSchedulesOnly', singleClassSchedulesOnly);
+    const handleStudentClassChange = (index, selectedOption) => {
+        const selectedClass = singleClassSchedulesOnly?.venueClasses?.find(
+            (cls) => cls.id === selectedOption.value
+        );
 
+        setStudents((prev) => {
+            const updated = [...prev];
+            updated[index] = {
+                ...updated[index],
+                selectedClassId: selectedOption.value,
+                selectedClassData: selectedClass
+            };
+            return updated;
+        });
+    };
+    const venueClassOptions = singleClassSchedulesOnly?.venueClasses?.map((cls) => ({
+        value: cls.id,
+        label: cls.className
+    }));
     useEffect(() => {
         setStudents((prevStudents) => {
             const n = Number(numberOfStudents) || 0; // safety for null/undefined
@@ -638,20 +663,40 @@ const List = () => {
             return;
         }
         setIsSubmitting(true); // Start loading
+        const missingClass = students.some(
+            (s, i) => i !== 0 && !s.selectedClassData
+        );
+
+        if (missingClass) {
+            showWarning("Class Required", "Please select class for all students");
+            return;
+        }
 
         const payload = {
             keyInformation: selectedKeyInfo,
             venueId: singleClassSchedulesOnly?.venue?.id,
-            classScheduleId: singleClassSchedulesOnly?.id,
             trialDate: selectedDate,
             totalStudents: students.length,
-            students: students.map(s => ({
-                ...s,
+
+            students: students.map((s, index) => ({
+                studentFirstName: s.studentFirstName,
+                studentLastName: s.studentLastName,
+                gender: s.gender,
+                age: s.age,
+                medicalInformation: s.medicalInformation || "",
                 dateOfBirth: toDateOnly(s.dateOfBirth),
+
+                // 👇 IMPORTANT
+                classScheduleId:
+                    index === 0
+                        ? singleClassSchedulesOnly?.id
+                        : s.selectedClassData?.id
             })),
+
             parents: parents.map(({ id, ...rest }) => rest),
             emergency,
         };
+
 
 
         try {
@@ -662,6 +707,7 @@ const List = () => {
                 await createBookFreeTrials(payload); // assume it's a promise
 
             }
+               setIsBooked(true);
             // console.log("Final Payload:", JSON.stringify(payload, null, 2));
             // Optionally show success alert or reset form
         } catch (error) {
@@ -676,6 +722,7 @@ const List = () => {
 
         const fetchData = async () => {
             if (classId) {
+                 setIsBooked(false);
                 await fetchFindClassID(classId);
                 await fetchKeyInfo();
                 await fetchComments();
@@ -1207,29 +1254,54 @@ const List = () => {
 
                                     {/* Row 4 */}
                                     <div className="flex gap-4">
+
+                                        {/* CLASS */}
                                         <div className="w-1/2">
                                             <label className="block text-[16px] font-semibold">Class</label>
-                                            <input
-                                                type="text"
-                                                value={singleClassSchedulesOnly?.className}
-                                                readOnly
-                                                className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3 text-base"
-                                                placeholder="Automatic entry"
-                                            />
+
+                                            {index === 0 ? (
+                                                <input
+                                                    type="text"
+                                                    value={singleClassSchedulesOnly?.className || ""}
+                                                    readOnly
+                                                    className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3"
+                                                />
+                                            ) : (
+                                                <Select
+                                                    className="w-full mt-2 text-base"
+                                                    classNamePrefix="react-select"
+                                                    options={venueClassOptions}
+                                                    value={
+                                                        venueClassOptions.find(
+                                                            (opt) => opt.value === student.selectedClassId
+                                                        ) || null
+                                                    }
+                                                    onChange={(option) =>
+                                                        handleStudentClassChange(index, option)
+                                                    }
+                                                />
+                                            )}
                                         </div>
+
+                                        {/* TIME */}
                                         <div className="w-1/2">
                                             <label className="block text-[16px] font-semibold">Time</label>
+
                                             <input
                                                 type="text"
-                                                value={
-                                                    `${singleClassSchedulesOnly?.startTime || ''} - ${singleClassSchedulesOnly?.endTime || ''}`
-                                                }
                                                 readOnly
-                                                className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3 text-base"
+                                                value={
+                                                    index === 0
+                                                        ? `${singleClassSchedulesOnly?.startTime || ""} - ${singleClassSchedulesOnly?.endTime || ""}`
+                                                        : student.selectedClassData
+                                                            ? `${student.selectedClassData.startTime} - ${student.selectedClassData.endTime}`
+                                                            : ""
+                                                }
+                                                className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3"
                                                 placeholder="Automatic entry"
                                             />
-
                                         </div>
+
                                     </div>
                                 </motion.div>
                             ))}
@@ -1656,17 +1728,27 @@ const List = () => {
                                 Cancel
                             </button>
 
-                            <button
-                                type="submit"
-                                onClick={handleSubmitClick}
-                                disabled={isSubmitting || selectedDate == null}
-                                className={`${isSubmitting || selectedDate == null
-                                    ? "bg-gray-400 border-gray-400 cursor-not-allowed"
-                                    : "bg-[#237FEA] border-[#237FEA] hover:bg-[#1f6dc9] cursor-pointer"
-                                    } text-white text-[18px] font-semibold border  px-6 py-3 rounded-lg transition`}
-                            >
-                                {isSubmitting ? "Submitting..." : "Book FREE Trial"}
-                            </button>
+                           <button
+    type="submit"
+    onClick={handleSubmitClick}
+    disabled={isSubmitting || selectedDate == null || isBooked}
+    className={`
+        ${
+            isBooked
+                ? "bg-green-600 border-green-600 cursor-default"
+                : isSubmitting || selectedDate == null
+                ? "bg-gray-400 border-gray-400 cursor-not-allowed"
+                : "bg-[#237FEA] border-[#237FEA] hover:bg-[#1f6dc9] cursor-pointer"
+        }
+        text-white text-[18px] font-semibold border px-6 py-3 rounded-lg transition
+    `}
+>
+    {isBooked
+        ? "Booked"
+        : isSubmitting
+        ? "Submitting..."
+        : "Book FREE Trial"}
+</button>
 
                         </div>
 

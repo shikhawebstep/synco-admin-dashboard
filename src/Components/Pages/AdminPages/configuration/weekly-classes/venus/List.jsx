@@ -32,7 +32,7 @@ const List = () => {
       // console.log("📦 Plan is not an array, value:", plan);
     }
 
-    // 🔴 Validation checks with Swal alerts
+    // 🔴 Validation checks with  alerts
     if (!icon) {
       showError("Missing Icon", "❌ Icon is missing!");
       console.error("❌ Icon is missing!");

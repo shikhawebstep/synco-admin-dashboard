@@ -1890,12 +1890,9 @@ export const ToDoListProvider = ({ children }) => {
 
         } catch (error) {
             console.error("Error creating class schedule:", error);
-            await Swal.fire({
-                title: "Error",
-                text: error.message || "Something went wrong while creating class schedule.",
-                icon: "error",
-                confirmButtonText: "OK",
-            });
+            await 
+            showError("Error", error.message || "Something went wrong while creating class schedule.");
+           
             throw error;
         } finally {
             await fetchMembershipSales();

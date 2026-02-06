@@ -56,19 +56,19 @@ const AddtoWaitingList = () => {
     setCurrentPage(page);
   };
   // console.log('classId', classId)
-  const { fetchClassSchedulesByID, singleClassSchedulesOnly, loading } = useClassSchedule() || {};
+  const { fetchFindClassID, singleClassSchedulesOnly, loading } = useClassSchedule() || {};
   const { createWaitinglist } = useBookFreeTrial()
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       if (classId) {
-        await fetchClassSchedulesByID(classId);
+        await fetchFindClassID(classId);
         await fetchComments();
       }
     };
     fetchData();
-  }, [classId, fetchClassSchedulesByID]);
+  }, [classId, fetchFindClassID]);
   const [activePopup, setActivePopup] = useState(null);
   const togglePopup = (id) => {
     setActivePopup((prev) => (prev === id ? null : id));
@@ -108,11 +108,14 @@ const AddtoWaitingList = () => {
     { value: "10-12 years ", label: "10-12 years" },
   ];
 
-  const hearOptions = [
-    { value: "Social Media", label: "Social Media" },
-    { value: "Friend", label: "Friend" },
-    { value: "Flyer", label: "Flyer" },
-  ];
+const hearOptions = [
+  { value: "Google", label: "Google" },
+  { value: "Facebook", label: "Facebook" },
+  { value: "Instagram", label: "Instagram" },
+  { value: "Friend", label: "Friend" },
+  { value: "Flyer", label: "Flyer" },
+];
+
   const keyInfoOptions = [
     { value: "keyInfo 1", label: "keyInfo 1" },
     { value: "keyInfo 2", label: "keyInfo 2" },
@@ -583,6 +586,25 @@ const AddtoWaitingList = () => {
     return `${year}-${month}-${day}`;
   };
 
+  const handleStudentClassChange = (index, selectedOption) => {
+    const selectedClass = singleClassSchedulesOnly?.venueClasses?.find(
+      (cls) => cls.id === selectedOption.value
+    );
+
+    setStudents((prev) => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        selectedClassId: selectedOption.value,
+        selectedClassData: selectedClass
+      };
+      return updated;
+    });
+  };
+  const venueClassOptions = singleClassSchedulesOnly?.venueClasses?.filter((cls) => cls.capacity == 0)?.map((cls) => ({
+    value: cls.id,
+    label: cls.className
+  }));
 
   const handleSubmit = async () => {
     if (!selectedDate) {
@@ -595,12 +617,16 @@ const AddtoWaitingList = () => {
       interest: selectedLevelOfInterest,
       keyInformation: selectedKeyInfo,
       venueId: singleClassSchedulesOnly?.venue?.id,
-      classScheduleId: singleClassSchedulesOnly?.id,
+     
       startDate: selectedDate,
       totalStudents: students.length,
-      students: students.map(s => ({
+      students: students.map((s, index) => ({
         ...s,
         dateOfBirth: toDateOnly(s.dateOfBirth),
+        classScheduleId:
+          index === 0
+            ? singleClassSchedulesOnly?.id
+            : s.selectedClassData?.id
       })),
       parents: parents.map(({ id, ...rest }) => rest),
       emergency,
@@ -1185,28 +1211,55 @@ const AddtoWaitingList = () => {
 
                   {/* Row 4 */}
                   <div className="flex gap-4">
+
+                    {/* CLASS */}
                     <div className="w-1/2">
                       <label className="block text-[16px] font-semibold">Class</label>
-                      <input
-                        type="text"
-                        value={singleClassSchedulesOnly?.className}
-                        readOnly
-                        className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3 text-base"
-                        placeholder="Automatic entry"
-                      />
+
+                      {index === 0 ? (
+                        <input
+                          type="text"
+                          value={singleClassSchedulesOnly?.className || ""}
+                          readOnly
+                          className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3"
+                        />
+                      ) : (
+                        <Select
+                          className="w-full mt-2 text-base"
+                          classNamePrefix="react-select"
+                          placeholder="Select class"
+                          options={venueClassOptions}
+                          value={
+                            venueClassOptions?.find(
+                              (opt) => opt.value === student.selectedClassId
+                            ) || null
+                          }
+                          onChange={(option) =>
+                            handleStudentClassChange(index, option)
+                          }
+                        />
+                      )}
                     </div>
+
+                    {/* TIME */}
                     <div className="w-1/2">
                       <label className="block text-[16px] font-semibold">Time</label>
+
                       <input
                         type="text"
-                        value={
-                          `${singleClassSchedulesOnly?.startTime || ''} - ${singleClassSchedulesOnly?.endTime || ''}`
-                        }
                         readOnly
-                        className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3 text-base"
+                        value={
+                          index === 0
+                            ? `${singleClassSchedulesOnly?.startTime || ""} - ${singleClassSchedulesOnly?.endTime || ""}`
+                            : student.selectedClassData
+                              ? `${student.selectedClassData.startTime} - ${student.selectedClassData.endTime}`
+                              : ""
+                        }
+                        className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3"
                         placeholder="Automatic entry"
                       />
                     </div>
+
                   </div>
                 </motion.div>
               ))}

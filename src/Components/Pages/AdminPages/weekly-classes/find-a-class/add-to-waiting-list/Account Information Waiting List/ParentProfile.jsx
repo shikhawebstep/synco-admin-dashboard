@@ -14,7 +14,7 @@ import { usePermission } from '../../../../Common/permission';
 import { addDays } from "date-fns";
 import { FaEdit, FaSave } from "react-icons/fa";
 import { useNotification } from '../../../../contexts/NotificationContext';
-import { showSuccess, showError, showConfirm } from '../../../../../../../utils/swalHelper';
+import { showSuccess, showError, showConfirm, showWarning } from '../../../../../../../utils/swalHelper';
 import { useNavigate } from 'react-router-dom';
 import PhoneInput from 'react-phone-input-2';
 const ParentProfile = ({ profile }) => {
@@ -1305,29 +1305,20 @@ const ParentProfile = ({ profile }) => {
                                         onClick={() => {
                                             // Validation
                                             if (!cancelData.cancellationType) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Missing Field",
-                                                    text: "Please select a cancellation type.",
-                                                });
+                                                showWarning("Validation Error", "Please select a cancellation type.");
+
                                                 return;
                                             }
 
                                             if (cancelData.cancellationType !== "immediate" && !cancelData.cancelDate) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Missing Field",
-                                                    text: "Please select a cancellation effective date.",
-                                                });
+                                                showWarning("Validation Error", "Please select a cancellation effective date.");
+
                                                 return;
                                             }
 
                                             if (!cancelData.cancelReason) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Missing Field",
-                                                    text: "Please select a reason for cancellation.",
-                                                });
+                                                showWarning("Validation Error", "Please select a reason for cancellation.");
+
                                                 return;
                                             }
 
@@ -1600,20 +1591,26 @@ const ParentProfile = ({ profile }) => {
                                     <button
                                         className="w-1/2 bg-[#237FEA] text-white rounded-xl py-3 text-[18px] font-medium hover:shadow-md transition-shadow"
                                         onClick={() => {
-                                            if (!freezeData.freezeStartDate || !freezeData.freezeDurationMonths || !freezeData.reactivateOn) {
+
+                                            const errors = [];
+
+                                            if (!freezeData.freezeStartDate) {
+                                                errors.push("<li><b>Freeze Start Date</b> is missing.</li>");
+                                            }
+
+                                            if (!freezeData.freezeDurationMonths) {
+                                                errors.push("<li><b>Freeze Duration</b> is missing.</li>");
+                                            }
+
+                                            if (!freezeData.reactivateOn) {
+                                                errors.push("<li><b>Reactivate On</b> date is missing.</li>");
+                                            }
+
+                                            if (errors.length > 0) {
                                                 Swal.fire({
-                                                    icon: "warning",
                                                     title: "Incomplete Form",
-                                                    html: `
-                                          <div style="font-size:16px; text-align:left; line-height:1.6;">
-                                            Please fill in all the required fields before submitting:
-                                            <ul style="margin-top:10px; list-style-type:disc; margin-left:20px;">
-                                              ${!freezeData.freezeStartDate ? "<li><b>Freeze Start Date</b> is missing.</li>" : ""}
-                                              ${!freezeData.freezeDurationMonths ? "<li><b>Freeze Duration</b> is missing.</li>" : ""}
-                                              ${!freezeData.reactivateOn ? "<li><b>Reactivate On</b> date is missing.</li>" : ""}
-                                            </ul>
-                                          </div>
-                                        `,
+                                                    html: `<ul style="text-align:left">${errors.join("")}</ul>`,
+                                                    icon: "warning",
                                                     confirmButtonText: "Okay",
                                                     confirmButtonColor: "#237FEA",
                                                 });
@@ -1624,6 +1621,8 @@ const ParentProfile = ({ profile }) => {
                                             freezerMembershipSubmit(freezeData, "allMembers");
                                         }}
                                     >
+
+
                                         Freeze Membership
                                     </button>
                                 </div>

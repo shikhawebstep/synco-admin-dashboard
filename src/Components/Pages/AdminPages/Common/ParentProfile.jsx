@@ -12,7 +12,7 @@ import { useBookFreeTrial } from '../../../../contexts/BookAFreeTrialContext';
 import Loader from '../../../../contexts/Loader';
 import { usePermission } from '../../../../Common/permission';
 import PhoneInput from 'react-phone-input-2';
-import { showError, showSuccess } from '../../../../utils/swalHelper';
+import { showError, showSuccess, showWarning } from '../../../../utils/swalHelper';
 
 const ParentProfile = ({ ParentProfile }) => {
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -901,20 +901,13 @@ const ParentProfile = ({ ParentProfile }) => {
                                         className="w-1/2 bg-[#237FEA] text-white rounded-xl py-3 text-[18px] font-medium hover:shadow-md transition-shadow"
                                         onClick={() => {
                                             if (!selectedDate) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Please select a date first!",
-                                                    confirmButtonColor: "#237FEA",
-                                                });
+                                                showWarning("Please select a date first!");
+                                                
                                                 return;
                                             }
 
                                             if (!reason) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Please select a reason for non-attendance!",
-                                                    confirmButtonColor: "#237FEA",
-                                                });
+                                                showWarning("Please select a reason for non-attendance!");
                                                 return;
                                             }
 

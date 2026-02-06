@@ -1262,29 +1262,18 @@ const StudentProfile = ({ profile }) => {
                                         onClick={() => {
                                             // Validation
                                             if (!cancelData.cancellationType) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Missing Field",
-                                                    text: "Please select a cancellation type.",
-                                                });
+                                               
+                                               showWarning("Missing Field", "Please select a cancellation type.");
                                                 return;
                                             }
 
                                             if (cancelData.cancellationType !== "immediate" && !cancelData.cancelDate) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Missing Field",
-                                                    text: "Please select a cancellation effective date.",
-                                                });
+                                                showWarning("Missing Field", "Please select a cancellation effective date.");
                                                 return;
                                             }
 
                                             if (!cancelData.cancelReason) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Missing Field",
-                                                    text: "Please select a reason for cancellation.",
-                                                });
+                                                showWarning("Missing Field", "Please select a reason for cancellation.");
                                                 return;
                                             }
 
@@ -1560,22 +1549,8 @@ const StudentProfile = ({ profile }) => {
                                         className="w-1/2 bg-[#237FEA] text-white rounded-xl py-3 text-[18px] font-medium hover:shadow-md transition-shadow"
                                         onClick={() => {
                                             if (!freezeData.freezeStartDate || !freezeData.freezeDurationMonths || !freezeData.reactivateOn) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Incomplete Form",
-                                                    html: `
-                                         <div style="font-size:16px; text-align:left; line-height:1.6;">
-                                           Please fill in all the required fields before submitting:
-                                           <ul style="margin-top:10px; list-style-type:disc; margin-left:20px;">
-                                             ${!freezeData.freezeStartDate ? "<li><b>Freeze Start Date</b> is missing.</li>" : ""}
-                                             ${!freezeData.freezeDurationMonths ? "<li><b>Freeze Duration</b> is missing.</li>" : ""}
-                                             ${!freezeData.reactivateOn ? "<li><b>Reactivate On</b> date is missing.</li>" : ""}
-                                           </ul>
-                                         </div>
-                                       `,
-                                                    confirmButtonText: "Okay",
-                                                    confirmButtonColor: "#237FEA",
-                                                });
+                                                showWarning("Incomplete Form", "Please fill in all the required fields before submitting:");
+                                               
                                                 return;
                                             }
 

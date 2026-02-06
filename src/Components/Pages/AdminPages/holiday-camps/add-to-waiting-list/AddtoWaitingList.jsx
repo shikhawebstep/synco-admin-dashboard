@@ -109,11 +109,14 @@ const [loadingState, setLoadingState] = useState(false);
     { value: "10-12 years ", label: "10-12 years" },
   ];
 
-  const hearOptions = [
-    { value: "Social Media", label: "Social Media" },
-    { value: "Friend", label: "Friend" },
-    { value: "Flyer", label: "Flyer" },
-  ];
+ const hearOptions = [
+  { value: "Google", label: "Google" },
+  { value: "Facebook", label: "Facebook" },
+  { value: "Instagram", label: "Instagram" },
+  { value: "Friend", label: "Friend" },
+  { value: "Flyer", label: "Flyer" },
+];
+
   const keyInfoOptions = [
     { value: "keyInfo 1", label: "keyInfo 1" },
     { value: "keyInfo 2", label: "keyInfo 2" },

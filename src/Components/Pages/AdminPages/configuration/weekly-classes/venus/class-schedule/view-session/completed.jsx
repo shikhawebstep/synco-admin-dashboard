@@ -52,7 +52,7 @@ const ViewSessions = ({ item, sessionData }) => {
             const token = localStorage.getItem("adminToken"); // dynamic token
             if (!token) throw new Error("Token not found");
 
-            // Show loading Swal
+            // Show loading 
             showLoading("Updating attendance...");
 
             const myHeaders = new Headers();

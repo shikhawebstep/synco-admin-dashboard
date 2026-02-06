@@ -57,11 +57,14 @@ const ParentProfile = () => {
   const [country, setCountry] = useState("uk");
   const [countryEmergency, setCountryEmergency] = useState("uk");
 
-  const hearOptions = [
-    { value: "Social Media", label: "Social Media" },
-    { value: "Friend", label: "Friend" },
-    { value: "Flyer", label: "Flyer" },
-  ];
+ const hearOptions = [
+  { value: "Google", label: "Google" },
+  { value: "Facebook", label: "Facebook" },
+  { value: "Instagram", label: "Instagram" },
+  { value: "Friend", label: "Friend" },
+  { value: "Flyer", label: "Flyer" },
+];
+
 
   // Handle text input
   const handleChange = (index, e) => {

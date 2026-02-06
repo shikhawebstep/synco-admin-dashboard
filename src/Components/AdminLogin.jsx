@@ -133,13 +133,7 @@ const AdminLogin = () => {
           const verified = await verifyToken(token);
           // console.log('🔍 Verification result:', verified);
 
-          // Swal.fire({
-          //   icon: 'success',
-          //   title: 'Login Successful',
-          //   text: 'Redirecting to dashboard...',
-          //   timer: 1500,
-          //   showConfirmButton: false,
-          // });
+      
 
           setTimeout(() => {
             // console.log('➡️ Navigating to dashboard...');

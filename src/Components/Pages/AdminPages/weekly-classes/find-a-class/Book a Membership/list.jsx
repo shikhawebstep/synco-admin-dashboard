@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Check, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { FiSearch } from "react-icons/fi";
 import { motion } from "framer-motion";
-import { showWarning,showConfirm } from "../../../../../../utils/swalHelper";  
+import { showWarning, showConfirm, showError } from "../../../../../../utils/swalHelper";
 import { format } from "date-fns";
 import { evaluate } from "mathjs";
 import PhoneInput from "react-phone-input-2";
@@ -38,6 +38,7 @@ const List = () => {
     const [dialCode2, setDialCode2] = useState("+44");
     const [calculatedAmount, setCalculatedAmount] = useState(0);
     const [remainingLessons, setRemainingLessons] = useState(0);
+    const [loadingData, setLoadingData] = useState(false);
     const [pricingBreakdown, setPricingBreakdown] = useState({
         pricePerClassPerChild: 0,
         numberOfLessonsProRated: 0,
@@ -55,7 +56,7 @@ const List = () => {
         // When library fires onChange, just update the dial code
         setDialCode("+" + data.dialCode);
     };
-
+  
     const handleCountryChange = (countryData) => {
         setCountry(countryData.countryCode);
         setDialCode2("+" + countryData.dialCode);
@@ -142,6 +143,8 @@ const List = () => {
             age: '',
             gender: '',
             medicalInformation: '',
+            selectedClassId: null,
+            selectedClassData: null
             // Add other fields if needed
         },
     ]);
@@ -179,7 +182,25 @@ const List = () => {
         : allPaymentPlans;
     // console.log('singleClassSchedulesOnly', singleClassSchedulesOnly)
 
+  const handleStudentClassChange = (index, selectedOption) => {
+        const selectedClass = singleClassSchedulesOnly?.venueClasses?.find(
+            (cls) => cls.id === selectedOption.value
+        );
 
+        setStudents((prev) => {
+            const updated = [...prev];
+            updated[index] = {
+                ...updated[index],
+                selectedClassId: selectedOption.value,
+                selectedClassData: selectedClass
+            };
+            return updated;
+        });
+    };
+    const venueClassOptions = singleClassSchedulesOnly?.venueClasses?.map((cls) => ({
+        value: cls.id,
+        label: cls.className
+    }));
     const handleNumberChange = (e) => {
         const val = e.target.value === "" ? "" : Number(e.target.value);
         if (val === "" || [1, 2, 3].includes(val)) {
@@ -621,19 +642,30 @@ const List = () => {
         if (transformedPayment.pan) {
             transformedPayment.pan = transformedPayment.pan.replace(/\s+/g, ""); // remove spaces
         }
+        const missingClass = students.some(
+            (s, i) => i !== 0 && !s.selectedClassData
+        );
 
+        if (missingClass) {
+            showWarning("Class Required", "Please select class for all students");
+            return;
+        }
         setIsSubmitting(true);
         const amountToSend = calculateAmount(selectedDate);
         const payload = {
             venueId: singleClassSchedulesOnly?.venue?.id,
-            classScheduleId: singleClassSchedulesOnly?.id,
+           
             startDate: selectedDate,
             totalStudents: students.length,
             keyInformation: selectedKeyInfo,
 
-            students: students.map(s => ({
+           students: students.map((s, index) => ({
                 ...s,
                 dateOfBirth: toDateOnly(s.dateOfBirth),
+                classScheduleId:
+                    index === 0
+                        ? singleClassSchedulesOnly?.id
+                        : s.selectedClassData?.id
             })),
 
             parents: parents.map(({ id, ...rest }) => rest),
@@ -778,11 +810,14 @@ const List = () => {
         { value: "Guardian", label: "Guardian" },
     ];
 
-    const hearOptions = [
-        { value: "Social Media", label: "Social Media" },
-        { value: "Friend", label: "Friend" },
-        { value: "Flyer", label: "Flyer" },
-    ];
+const hearOptions = [
+  { value: "Google", label: "Google" },
+  { value: "Facebook", label: "Facebook" },
+  { value: "Instagram", label: "Instagram" },
+  { value: "Friend", label: "Friend" },
+  { value: "Flyer", label: "Flyer" },
+];
+
 
 
 
@@ -803,13 +838,10 @@ const List = () => {
             setCommentsList(result);
         } catch (error) {
             console.error("Failed to fetch comments:", error);
+            showError(
+                error.message || error.error || "Failed to fetch comments. Please try again later."
+            );
 
-            Swal.fire({
-                title: "Error",
-                text: error.message || error.error || "Failed to fetch comments. Please try again later.",
-                icon: "error",
-                confirmButtonText: "OK",
-            });
         }
     }, []);
     const handleSubmitComment = async (e) => {
@@ -832,13 +864,7 @@ const List = () => {
         };
 
         try {
-            Swal.fire({
-                title: "Creating ",
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                },
-            });
+            setLoadingData(true);
 
 
             const response = await fetch(`${API_BASE_URL}/api/admin/book-membership/comment/create`, requestOptions);
@@ -846,33 +872,22 @@ const List = () => {
             const result = await response.json();
 
             if (!response.ok) {
-                Swal.fire({
-                    icon: "error",
-                    title: "Failed to Add Comment",
-                    text: result.message || "Something went wrong.",
-                });
+                showError("Failed to Add Comment", result.message || "Something went wrong.");
                 return;
             }
 
 
-            Swal.fire({
-                icon: "success",
-                title: "Comment Created",
-                text: result.message || " Comment has been  added successfully!",
-                showConfirmButton: false,
-            });
+            showSuccess("Comment Created", result.message || " Comment has been  added successfully!");
+
 
 
             setComment('');
             fetchComments();
         } catch (error) {
             console.error("Error creating member:", error);
-            Swal.fire({
-                icon: "error",
-                title: "Network Error",
-                text:
-                    error.message || "An error occurred while submitting the form.",
-            });
+            showError("Network Error", error.message || "An error occurred while submitting the form.");
+        } finally {
+            setLoadingData(false);
         }
     }
     // Function to convert HTML to plain text while preserving list structure
@@ -1483,30 +1498,59 @@ const List = () => {
                                     </div>
 
                                     {/* Row 4 */}
-                                    <div className="flex gap-4">
-                                        <div className="w-1/2">
-                                            <label className="block text-[16px] font-semibold">Class</label>
-                                            <input
-                                                type="text"
-                                                value={singleClassSchedulesOnly?.className}
-                                                readOnly
-                                                className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3 text-base"
-                                                placeholder="Automatic entry"
-                                            />
-                                        </div>
-                                        <div className="w-1/2">
-                                            <label className="block text-[16px] font-semibold">Time</label>
-                                            <input
-                                                type="text"
-                                                value={
-                                                    `${singleClassSchedulesOnly?.startTime || ''} - ${singleClassSchedulesOnly?.endTime || ''}`
-                                                }
-                                                readOnly
-                                                className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3 text-base"
-                                                placeholder="Automatic entry"
-                                            />
-                                        </div>
-                                    </div>
+                                  <div className="flex gap-4">
+
+  {/* CLASS */}
+  <div className="w-1/2">
+    <label className="block text-[16px] font-semibold">Class</label>
+
+    {index === 0 ? (
+      <input
+        type="text"
+        value={singleClassSchedulesOnly?.className || ""}
+        readOnly
+        className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3"
+      />
+    ) : (
+      <Select
+        className="w-full mt-2 text-base"
+         classNamePrefix="react-select"
+        placeholder="Select class"
+        options={venueClassOptions}
+        value={
+          venueClassOptions.find(
+            (opt) => opt.value === student.selectedClassId
+          ) || null
+        }
+        onChange={(option) =>
+          handleStudentClassChange(index, option)
+        }
+      />
+    )}
+  </div>
+
+  {/* TIME */}
+  <div className="w-1/2">
+    <label className="block text-[16px] font-semibold">Time</label>
+
+    <input
+      type="text"
+      readOnly
+      value={
+        index === 0
+          ? `${singleClassSchedulesOnly?.startTime || ""} - ${singleClassSchedulesOnly?.endTime || ""}`
+          : student.selectedClassData
+          ? `${student.selectedClassData.startTime} - ${student.selectedClassData.endTime}`
+          : ""
+      }
+      className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3"
+      placeholder="Automatic entry"
+    />
+  </div>
+
+</div>
+
+
                                 </motion.div>
                             ))}
                         </div>
@@ -1943,11 +1987,8 @@ const List = () => {
                                         else if (!membershipPlan) msg = "Please select Membership Plan";
                                         else if (!selectedDate) msg = "Please select  Date";
 
-                                        Swal.fire({
-                                            icon: "warning",
-                                            title: "Required Fields",
-                                            text: msg,
-                                        });
+                                        showError("Required Fields", msg);
+
                                         return;
                                     }
 

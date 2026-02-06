@@ -20,6 +20,7 @@ export const BookFreeTrialProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [removeWaiting, setRemoveWaiting] = useState(false);
+  const [isBooked, setIsBooked] = useState(false);
 
   const [isEditBookFreeTrial, setIsEditBookFreeTrial] = useState(false);
   const [singleBookFreeTrials, setSingleBookFreeTrials] = useState([]);
@@ -319,16 +320,18 @@ export const BookFreeTrialProvider = ({ children }) => {
       if (!response.ok) {
         throw new Error(result.message || result.keyInformation || "Failed to create class schedule");
       }
+      setIsBooked(true);
 
       await showSuccess("Success!", result.message || "Free Trial has been created successfully.");
-      
 
-      navigate(`/weekly-classes/trial/list`)
+      setTimeout(() => {
+        navigate(`/weekly-classes/trial/list`)
+      }, 1000);
       return result;
 
     } catch (error) {
       console.error("Error creating class schedule:", error);
-          await showError("Error", error.message || "Something went wrong while creating class schedule.");
+      await showError("Error", error.message || "Something went wrong while creating class schedule.");
       throw error;
     } finally {
       await fetchBookFreeTrials();
@@ -486,7 +489,7 @@ export const BookFreeTrialProvider = ({ children }) => {
         throw new Error(result.message || "Failed to create Membership");
       }
 
-        await showSuccess("Success!", result.message || "Trial emails have been sent successfully.");
+      await showSuccess("Success!", result.message || "Trial emails have been sent successfully.");
 
       return result;
 
@@ -523,14 +526,14 @@ export const BookFreeTrialProvider = ({ children }) => {
         throw new Error(result.message || "Failed to create Membership");
       }
 
-        await showSuccess("Success!", result.message || "Trial has been cancelled successfully.");
+      await showSuccess("Success!", result.message || "Trial has been cancelled successfully.");
       navigate(`/weekly-classes/trial/list`)
       return result;
 
     } catch (error) {
       console.error("Error cancelling free trial:", error);
       await showError("Error", error.message || "Something went wrong while cancelling free trial.");
-       
+
       throw error;
     } finally {
       await fetchBookFreeTrials();
@@ -561,7 +564,7 @@ export const BookFreeTrialProvider = ({ children }) => {
         throw new Error(result.message || "Failed to create Membership");
       }
 
-        await showSuccess("Success!", result.message || "Trial has been rebooked successfully.");
+      await showSuccess("Success!", result.message || "Trial has been rebooked successfully.");
 
       return result;
 
@@ -599,7 +602,7 @@ export const BookFreeTrialProvider = ({ children }) => {
         throw new Error(result.message || "Failed to create Membership");
       }
 
-        await showSuccess("Success!", result.message || "Trial email has been sent successfully.");
+      await showSuccess("Success!", result.message || "Trial email has been sent successfully.");
       // navigate(`/weekly-classes/trial/list`)
       return result;
 
@@ -637,7 +640,7 @@ export const BookFreeTrialProvider = ({ children }) => {
         throw new Error(result.message || "Failed to Cancel Waiting List");
       }
 
-        await showSuccess("Success!", result.message);
+      await showSuccess("Success!", result.message);
       navigate(`/weekly-classes/trial/list`);
 
       return result;
@@ -646,7 +649,7 @@ export const BookFreeTrialProvider = ({ children }) => {
       console.error("Error creating no membership:", error);
       await showError("Error", error.message || "Something went wrong while creating no membership.");
 
-      
+
       throw error;
     } finally {
       setLoading(false);
@@ -1243,7 +1246,7 @@ export const BookFreeTrialProvider = ({ children }) => {
 
       if (!response.ok) {
         if (result?.message?.includes("No slots left")) {
-         showWarning("Warning", result.message || "No slots left in the target class for transfer.");
+          showWarning("Warning", result.message || "No slots left in the target class for transfer.");
           return;
         }
 
@@ -1565,7 +1568,7 @@ export const BookFreeTrialProvider = ({ children }) => {
         throw new Error(result.message || "Failed to create Membership");
       }
 
-        await showSuccess("Success!", result.message || "Trialsssssss has been created successfully.");
+      await showSuccess("Success!", result.message || "Trialsssssss has been created successfully.");
 
       return result;
 
@@ -1616,7 +1619,7 @@ export const BookFreeTrialProvider = ({ children }) => {
 
       // ✅ Success alert
       await showSuccess("Success!", result.message || "Members have been successfully added to the waiting list.");
-      
+
 
       // ✅ Navigate safely based on source
       if (comesfrom === "allMembers") {
@@ -1629,7 +1632,7 @@ export const BookFreeTrialProvider = ({ children }) => {
       return result;
     } catch (error) {
       console.error("Error adding to waiting list:", error);
-      
+
       showError("Error", error.message || "Something went wrong while processing the request.");
     } finally {
       setLoading(false);
@@ -1748,7 +1751,7 @@ export const BookFreeTrialProvider = ({ children }) => {
         throw new Error(result.message || "Failed to Cancel Waiting List");
       }
 
-        await showSuccess("Success!", result.message || "Trialsssssss has been created successfully.");
+      await showSuccess("Success!", result.message || "Trialsssssss has been created successfully.");
       if (comesfrom === "allMembers") {
         navigate(`/weekly-classes/all-members/list`);
       } else if (comesfrom === "waitingList") {
@@ -1795,7 +1798,7 @@ export const BookFreeTrialProvider = ({ children }) => {
         throw new Error(result.message || "Failed to create Membership");
       }
 
-        await showSuccess("Success!", result.message || "Trialsssssss has been created successfully.");
+      await showSuccess("Success!", result.message || "Trialsssssss has been created successfully.");
 
       return result;
 
@@ -1923,7 +1926,7 @@ export const BookFreeTrialProvider = ({ children }) => {
       }
 
       await showSuccess("Success!", result.message || "Membership has been created successfully.");
-       
+
       navigate(`/weekly-classes/find-a-class/add-to-waiting-list/list`)
       return result;
 
@@ -2309,7 +2312,7 @@ export const BookFreeTrialProvider = ({ children }) => {
         throw new Error(result.message || "Failed to create Membership");
       }
 
-        await showSuccess("Success!", result.message || "Trialsssssss has been created successfully.");
+      await showSuccess("Success!", result.message || "Trialsssssss has been created successfully.");
       navigate("/weekly-classes/cancellation");
       return result;
 
@@ -2347,7 +2350,7 @@ export const BookFreeTrialProvider = ({ children }) => {
         throw new Error(result.message || "Failed to create Membership");
       }
 
-        await showSuccess("Success!", result.message || "Trialsssssss has been created successfully.");
+      await showSuccess("Success!", result.message || "Trialsssssss has been created successfully.");
       navigate("/weekly-classes/cancellation", { state: 'allCancellation' });
       return result;
 
@@ -2385,7 +2388,7 @@ export const BookFreeTrialProvider = ({ children }) => {
         throw new Error(result.message || "Failed to create Membership");
       }
 
-        await showSuccess("Success!", result.message || "Trialsssssss has been created successfully.");
+      await showSuccess("Success!", result.message || "Trialsssssss has been created successfully.");
       navigate("/weekly-classes/cancellation", { state: 'fullCancellation' });
 
       return result;
@@ -2622,6 +2625,7 @@ export const BookFreeTrialProvider = ({ children }) => {
         fetchBookMembershipsLoading,
         ServiceHistoryFulltto,
         ServiceHistoryAlltto,
+        setIsBooked, isBooked,
         fetchMembershipSalesLoading, createBookLeads, createBookBirthday, addToWaitingList, setaddToWaitingList, showCancelTrial, setshowCancelTrial
       }}>
       {children}

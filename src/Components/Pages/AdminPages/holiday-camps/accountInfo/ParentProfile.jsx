@@ -54,11 +54,14 @@ const [loading, setLoading] = useState(false);
   const [dialCodeEmergency, setDialCodeEmergency] = useState("+44");
   const [dialCode, setDialCode] = useState("+44");
   const [country, setCountry] = useState("uk");
-  const hearOptions = [
-    { value: "Friend", label: "Friend" },
-    { value: "Website", label: "Website" },
-    { value: "Other", label: "Other" }
-  ];
+const hearOptions = [
+  { value: "Google", label: "Google" },
+  { value: "Facebook", label: "Facebook" },
+  { value: "Instagram", label: "Instagram" },
+  { value: "Friend", label: "Friend" },
+  { value: "Flyer", label: "Flyer" },
+];
+
 
   // Handle text input
   const handleChange = (index, e) => {

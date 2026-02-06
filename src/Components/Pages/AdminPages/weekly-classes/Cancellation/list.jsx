@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import Loader from '../../contexts/Loader';
 import { usePermission } from '../../Common/permission';
 import * as XLSX from "xlsx";
-import { showError } from '../../../../../utils/swalHelper'; 
+import { showError, showWarning } from '../../../../../utils/swalHelper'; 
 import { useLocation } from "react-router-dom";
 
 import { saveAs } from "file-saver";
@@ -916,11 +916,7 @@ const CancellationList = () => {
 
                             onClick={() => {
                                 if (!selectedStudents || selectedStudents.length === 0) {
-                                    Swal.fire({
-                                        icon: "warning",
-                                        title: "No students selected",
-                                        text: "Please select at least one student before sending an email.",
-                                    });
+                                    showWarning("No students selected", "Please select at least one student before sending an email.");
                                     return;
                                 }
                                 if (active === "full") {

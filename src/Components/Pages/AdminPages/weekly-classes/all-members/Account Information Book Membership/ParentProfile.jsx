@@ -1065,11 +1065,8 @@ const ParentProfile = ({ profile }) => {
                                         className="w-1/2 bg-[#237FEA] text-white rounded-xl py-3 text-[18px] font-medium hover:shadow-md transition-shadow"
                                         onClick={() => {
                                             if (!waitingListData.classScheduleId) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Please select a class before joining the waiting list!",
-                                                    confirmButtonColor: "#237FEA",
-                                                });
+                                                showError("Validation Error", "Please select a class before joining the waiting list.");
+                                                
                                                 return;
                                             }
 
@@ -1194,11 +1191,7 @@ const ParentProfile = ({ profile }) => {
                                         className="w-1/2 bg-[#237FEA] text-white rounded-xl py-3 text-[18px] font-medium hover:shadow-md transition-shadow"
                                         onClick={() => {
                                             if (!reactivateData?.reactivateOn) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Please select a reactivation date first!",
-                                                    confirmButtonColor: "#237FEA",
-                                                });
+                                            showWarning("Validation Error", "Please select a reactivation date first.");
                                                 return;
                                             }
 
@@ -1326,31 +1319,22 @@ const ParentProfile = ({ profile }) => {
                                         onClick={() => {
                                             // Validation: cancellation type
                                             if (!cancelData.cancellationType) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Missing Field",
-                                                    text: "Please select a cancellation type.",
-                                                });
+                                              showWarning("Validation Error", "Please select a cancellation type.");
+                                                
                                                 return;
                                             }
 
                                             // Validation: cancel date (only if not immediate)
                                             if (cancelData.cancellationType !== "immediate" && !cancelData.cancelDate) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Missing Field",
-                                                    text: "Please select a cancellation effective date.",
-                                                });
+                                              showWarning("Validation Error", "Please select a cancellation effective date.");
+                                               
                                                 return;
                                             }
 
                                             // Validation: reason
                                             if (!cancelData.cancelReason) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Missing Field",
-                                                    text: "Please select a reason for cancellation.",
-                                                });
+                                              showWarning("Validation Error", "Please select a reason for cancellation.");
+                                               
                                                 return;
                                             }
 
@@ -1628,28 +1612,14 @@ const ParentProfile = ({ profile }) => {
                                         className="w-1/2 bg-[#237FEA] text-white rounded-xl py-3 text-[18px] font-medium hover:shadow-md transition-shadow"
                                         onClick={() => {
                                             if (!freezeData.freezeStartDate || !freezeData.freezeDurationMonths || !freezeData.reactivateOn) {
-                                                Swal.fire({
-                                                    icon: "warning",
-                                                    title: "Incomplete Form",
-                                                    html: `
-                                            <div style="font-size:16px; text-align:left; line-height:1.6;">
-                                              Please fill in all the required fields before submitting:
-                                              <ul style="margin-top:10px; list-style-type:disc; margin-left:20px;">
-                                                ${!freezeData.freezeStartDate ? "<li><b>Freeze Start Date</b> is missing.</li>" : ""}
-                                                ${!freezeData.freezeDurationMonths ? "<li><b>Freeze Duration</b> is missing.</li>" : ""}
-                                                ${!freezeData.reactivateOn ? "<li><b>Reactivate On</b> date is missing.</li>" : ""}
-                                              </ul>
-                                            </div>
-                                          `,
-                                                    confirmButtonText: "Okay",
-                                                    confirmButtonColor: "#237FEA",
-                                                });
+                                                showWarning("Incomplete Form", "Please fill in all the required fields before submitting.");
                                                 return;
                                             }
                                             setFreezeMembership(false)
                                             // ✅ Submit when all fields are filled
                                             freezerMembershipSubmit(freezeData, "allMembers");
                                         }}
+                                            
                                     >
                                         Freeze Membership
                                     </button>

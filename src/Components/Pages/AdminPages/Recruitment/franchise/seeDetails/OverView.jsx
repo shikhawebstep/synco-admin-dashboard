@@ -796,11 +796,11 @@ const OverView = ({ steps, setSteps }) => {
                   disabled={!!form.howDidYouHear}
                   onChange={(e) => handleChange("howDidYouHear", e.target.value)}
                   className="input border border-[#E2E1E5] rounded-xl w-full p-3">
-                  <option value="Indeed">Indeed</option>
+                  <option value="Google">Google</option>
                   <option value="Facebook">Facebook</option>
-                  <option value="LinkedIn">Linked In</option>
                   <option value="Instagram">Instagram</option>
-                  <option value="Referral">Referral</option>
+                  <option value="Friend">Friend</option>
+                  <option value="Flyer">Flyer</option>
                 </select>
               </div>
 

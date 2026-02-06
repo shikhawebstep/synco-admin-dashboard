@@ -110,10 +110,10 @@ export const HolidayTermsProvider = ({ children }) => {
         // Save into state
         setMyGroupData(result?.data || null);
 
-        return result; // ⬅ important for Swal in parent
+        return result; // ⬅ important for  in parent
       } catch (err) {
         console.error("Failed to create holiday camp:", err);
-        throw err; // rethrow so parent can show Swal
+        throw err; // rethrow so parent can show 
       }
     },
     [token]
@@ -271,10 +271,10 @@ export const HolidayTermsProvider = ({ children }) => {
         // Refresh UI data
         await fetchHolidayCampMain();
 
-        return result; // important for Swal success msg in parent
+        return result; // important for  success msg in parent
       } catch (err) {
         console.error("Failed to update holiday camp date:", err);
-        throw err; // so the calling function can show Swal error
+        throw err; // so the calling function can show  error
       }
     },
     [token, fetchHolidayCampMain]
