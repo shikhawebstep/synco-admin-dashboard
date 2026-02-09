@@ -57,12 +57,13 @@ const AddtoWaitingList = () => {
   };
   // console.log('classId', classId)
   const { fetchFindClassID, singleClassSchedulesOnly, loading } = useClassSchedule() || {};
-  const { createWaitinglist } = useBookFreeTrial()
+  const { createWaitinglist, isBooked, setIsBooked } = useBookFreeTrial()
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       if (classId) {
+        setIsBooked(false);
         await fetchFindClassID(classId);
         await fetchComments();
       }
@@ -108,13 +109,13 @@ const AddtoWaitingList = () => {
     { value: "10-12 years ", label: "10-12 years" },
   ];
 
-const hearOptions = [
-  { value: "Google", label: "Google" },
-  { value: "Facebook", label: "Facebook" },
-  { value: "Instagram", label: "Instagram" },
-  { value: "Friend", label: "Friend" },
-  { value: "Flyer", label: "Flyer" },
-];
+  const hearOptions = [
+    { value: "Google", label: "Google" },
+    { value: "Facebook", label: "Facebook" },
+    { value: "Instagram", label: "Instagram" },
+    { value: "Friend", label: "Friend" },
+    { value: "Flyer", label: "Flyer" },
+  ];
 
   const keyInfoOptions = [
     { value: "keyInfo 1", label: "keyInfo 1" },
@@ -617,7 +618,7 @@ const hearOptions = [
       interest: selectedLevelOfInterest,
       keyInformation: selectedKeyInfo,
       venueId: singleClassSchedulesOnly?.venue?.id,
-     
+
       startDate: selectedDate,
       totalStudents: students.length,
       students: students.map((s, index) => ({
@@ -640,6 +641,7 @@ const hearOptions = [
       else {
         await createWaitinglist(payload);
       } // assume it's a promise
+      setIsBooked(true);
       // console.log("Final Payload:", JSON.stringify(payload, null, 2));
       // Optionally show success alert or reset form
     } catch (error) {
@@ -1620,13 +1622,16 @@ const hearOptions = [
               <button
                 type="submit"
                 onClick={handleSubmit}
-                disabled={isSubmitting || !isFormValid()}
-                className={`${isSubmitting || !isFormValid()
-                  ? "bg-gray-400 border-gray-400 cursor-not-allowed"
-                  : "bg-[#237FEA] border-[#237FEA] hover:bg-[#1f6dc9] cursor-pointer"
+                disabled={isSubmitting || !isFormValid() || isBooked}
+                className={`${isBooked
+                  ? "bg-green-600 border-green-600 cursor-default"
+                  : isSubmitting || !isFormValid()
+                    ? "bg-gray-400 border-gray-400 cursor-not-allowed"
+                    : "bg-[#237FEA] border-[#237FEA] hover:bg-[#1f6dc9] cursor-pointer"
                   } text-white text-[18px] font-semibold border px-6 py-3 rounded-lg transition`}
               >
-                {isSubmitting ? "Submitting..." : "Add to Waiting List "}
+                {isBooked
+                  ? "Booked" : isSubmitting ? "Submitting..." : "Add to Waiting List "}
 
               </button>
 

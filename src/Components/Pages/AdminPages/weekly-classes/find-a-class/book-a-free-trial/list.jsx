@@ -707,7 +707,7 @@ const List = () => {
                 await createBookFreeTrials(payload); // assume it's a promise
 
             }
-               setIsBooked(true);
+            setIsBooked(true);
             // console.log("Final Payload:", JSON.stringify(payload, null, 2));
             // Optionally show success alert or reset form
         } catch (error) {
@@ -722,7 +722,7 @@ const List = () => {
 
         const fetchData = async () => {
             if (classId) {
-                 setIsBooked(false);
+                setIsBooked(false);
                 await fetchFindClassID(classId);
                 await fetchKeyInfo();
                 await fetchComments();
@@ -1728,27 +1728,26 @@ const List = () => {
                                 Cancel
                             </button>
 
-                           <button
-    type="submit"
-    onClick={handleSubmitClick}
-    disabled={isSubmitting || selectedDate == null || isBooked}
-    className={`
-        ${
-            isBooked
-                ? "bg-green-600 border-green-600 cursor-default"
-                : isSubmitting || selectedDate == null
-                ? "bg-gray-400 border-gray-400 cursor-not-allowed"
-                : "bg-[#237FEA] border-[#237FEA] hover:bg-[#1f6dc9] cursor-pointer"
-        }
+                            <button
+                                type="submit"
+                                onClick={handleSubmitClick}
+                                disabled={isSubmitting || selectedDate == null || isBooked}
+                                className={`
+        ${isBooked
+                                        ? "bg-green-600 border-green-600 cursor-default"
+                                        : isSubmitting || selectedDate == null
+                                            ? "bg-gray-400 border-gray-400 cursor-not-allowed"
+                                            : "bg-[#237FEA] border-[#237FEA] hover:bg-[#1f6dc9] cursor-pointer"
+                                    }
         text-white text-[18px] font-semibold border px-6 py-3 rounded-lg transition
     `}
->
-    {isBooked
-        ? "Booked"
-        : isSubmitting
-        ? "Submitting..."
-        : "Book FREE Trial"}
-</button>
+                            >
+                                {isBooked
+                                    ? "Booked"
+                                    : isSubmitting
+                                        ? "Submitting..."
+                                        : "Book FREE Trial"}
+                            </button>
 
                         </div>
 

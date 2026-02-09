@@ -942,7 +942,10 @@ export const BookFreeTrialProvider = ({ children }) => {
       }
 
       await showSuccess("Success!", result.message || "Membership has been created successfully.");
-      navigate(`/weekly-classes/all-members/list`)
+      setIsBooked(true);
+      setTimeout(() => {
+        navigate(`/weekly-classes/all-members/list`)
+      }, 1000);
       return result;
 
     } catch (error) {
@@ -1053,7 +1056,13 @@ export const BookFreeTrialProvider = ({ children }) => {
       }
 
       await showSuccess("Success!", result.message || "Membership has been created successfully.");
-      navigate(`/weekly-classes/all-members/list`)
+
+      setIsBooked(true);
+
+      setTimeout(() => {
+        navigate(`/weekly-classes/all-members/list`)
+      }, 1000);
+
       return result;
 
     } catch (error) {
@@ -1090,12 +1099,16 @@ export const BookFreeTrialProvider = ({ children }) => {
       }
 
       await showSuccess("Success!", result.message || "Membership has been created successfully.");
-      navigate(`/weekly-classes/all-members/list`)
+      setIsBooked(true);
+      setTimeout(() => {
+        navigate(`/weekly-classes/all-members/list`)
+      }, 1000);
       return result;
 
     } catch (error) {
       console.error("Error creating class schedule:", error);
       await showError("Error", error.message || "Something went wrong while creating class schedule.");
+
       throw error;
     } finally {
       await fetchBookMemberships();
@@ -1926,8 +1939,10 @@ export const BookFreeTrialProvider = ({ children }) => {
       }
 
       await showSuccess("Success!", result.message || "Membership has been created successfully.");
-
-      navigate(`/weekly-classes/find-a-class/add-to-waiting-list/list`)
+      setIsBooked(true);
+      setTimeout(() => {
+        navigate(`/weekly-classes/find-a-class/add-to-waiting-list/list`)
+      }, 1000);
       return result;
 
     } catch (error) {

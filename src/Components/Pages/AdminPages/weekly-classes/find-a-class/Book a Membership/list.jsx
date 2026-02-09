@@ -26,7 +26,7 @@ import { useNotification } from "../../../contexts/NotificationContext";
 const List = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const { createBookMembership, createBookMembershipByfreeTrial, createBookMembershipByWaitingList } = useBookFreeTrial()
+    const { createBookMembership, createBookMembershipByfreeTrial, createBookMembershipByWaitingList, isBooked, setIsBooked } = useBookFreeTrial()
     const [expression, setExpression] = useState('');
     const [numberOfStudents, setNumberOfStudents] = useState('1');
     const { keyInfoData, fetchKeyInfo } = useMembers();
@@ -56,7 +56,7 @@ const List = () => {
         // When library fires onChange, just update the dial code
         setDialCode("+" + data.dialCode);
     };
-  
+
     const handleCountryChange = (countryData) => {
         setCountry(countryData.countryCode);
         setDialCode2("+" + countryData.dialCode);
@@ -182,7 +182,7 @@ const List = () => {
         : allPaymentPlans;
     // console.log('singleClassSchedulesOnly', singleClassSchedulesOnly)
 
-  const handleStudentClassChange = (index, selectedOption) => {
+    const handleStudentClassChange = (index, selectedOption) => {
         const selectedClass = singleClassSchedulesOnly?.venueClasses?.find(
             (cls) => cls.id === selectedOption.value
         );
@@ -286,7 +286,7 @@ const List = () => {
     useEffect(() => {
         const fetchData = async () => {
             if (finalClassId) {
-
+                setIsBooked(false);
                 await fetchFindClassID(finalClassId);
                 await fetchKeyInfo();
                 await fetchComments();
@@ -654,12 +654,12 @@ const List = () => {
         const amountToSend = calculateAmount(selectedDate);
         const payload = {
             venueId: singleClassSchedulesOnly?.venue?.id,
-           
+
             startDate: selectedDate,
             totalStudents: students.length,
             keyInformation: selectedKeyInfo,
 
-           students: students.map((s, index) => ({
+            students: students.map((s, index) => ({
                 ...s,
                 dateOfBirth: toDateOnly(s.dateOfBirth),
                 classScheduleId:
@@ -697,6 +697,7 @@ const List = () => {
             else {
                 await createBookMembership(payload);
             }
+            setIsBooked(true);
 
         } catch (error) {
             console.error("Error while submitting:", error);
@@ -810,13 +811,13 @@ const List = () => {
         { value: "Guardian", label: "Guardian" },
     ];
 
-const hearOptions = [
-  { value: "Google", label: "Google" },
-  { value: "Facebook", label: "Facebook" },
-  { value: "Instagram", label: "Instagram" },
-  { value: "Friend", label: "Friend" },
-  { value: "Flyer", label: "Flyer" },
-];
+    const hearOptions = [
+        { value: "Google", label: "Google" },
+        { value: "Facebook", label: "Facebook" },
+        { value: "Instagram", label: "Instagram" },
+        { value: "Friend", label: "Friend" },
+        { value: "Flyer", label: "Flyer" },
+    ];
 
 
 
@@ -1498,57 +1499,57 @@ const hearOptions = [
                                     </div>
 
                                     {/* Row 4 */}
-                                  <div className="flex gap-4">
+                                    <div className="flex gap-4">
 
-  {/* CLASS */}
-  <div className="w-1/2">
-    <label className="block text-[16px] font-semibold">Class</label>
+                                        {/* CLASS */}
+                                        <div className="w-1/2">
+                                            <label className="block text-[16px] font-semibold">Class</label>
 
-    {index === 0 ? (
-      <input
-        type="text"
-        value={singleClassSchedulesOnly?.className || ""}
-        readOnly
-        className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3"
-      />
-    ) : (
-      <Select
-        className="w-full mt-2 text-base"
-         classNamePrefix="react-select"
-        placeholder="Select class"
-        options={venueClassOptions}
-        value={
-          venueClassOptions.find(
-            (opt) => opt.value === student.selectedClassId
-          ) || null
-        }
-        onChange={(option) =>
-          handleStudentClassChange(index, option)
-        }
-      />
-    )}
-  </div>
+                                            {index === 0 ? (
+                                                <input
+                                                    type="text"
+                                                    value={singleClassSchedulesOnly?.className || ""}
+                                                    readOnly
+                                                    className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3"
+                                                />
+                                            ) : (
+                                                <Select
+                                                    className="w-full mt-2 text-base"
+                                                    classNamePrefix="react-select"
+                                                    placeholder="Select class"
+                                                    options={venueClassOptions}
+                                                    value={
+                                                        venueClassOptions.find(
+                                                            (opt) => opt.value === student.selectedClassId
+                                                        ) || null
+                                                    }
+                                                    onChange={(option) =>
+                                                        handleStudentClassChange(index, option)
+                                                    }
+                                                />
+                                            )}
+                                        </div>
 
-  {/* TIME */}
-  <div className="w-1/2">
-    <label className="block text-[16px] font-semibold">Time</label>
+                                        {/* TIME */}
+                                        <div className="w-1/2">
+                                            <label className="block text-[16px] font-semibold">Time</label>
 
-    <input
-      type="text"
-      readOnly
-      value={
-        index === 0
-          ? `${singleClassSchedulesOnly?.startTime || ""} - ${singleClassSchedulesOnly?.endTime || ""}`
-          : student.selectedClassData
-          ? `${student.selectedClassData.startTime} - ${student.selectedClassData.endTime}`
-          : ""
-      }
-      className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3"
-      placeholder="Automatic entry"
-    />
-  </div>
+                                            <input
+                                                type="text"
+                                                readOnly
+                                                value={
+                                                    index === 0
+                                                        ? `${singleClassSchedulesOnly?.startTime || ""} - ${singleClassSchedulesOnly?.endTime || ""}`
+                                                        : student.selectedClassData
+                                                            ? `${student.selectedClassData.startTime} - ${student.selectedClassData.endTime}`
+                                                            : ""
+                                                }
+                                                className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3"
+                                                placeholder="Automatic entry"
+                                            />
+                                        </div>
 
-</div>
+                                    </div>
 
 
                                 </motion.div>
@@ -1995,12 +1996,15 @@ const hearOptions = [
                                     // If both are selected, proceed
                                     setShowPopup(true);
                                 }}
-                                className={`text-white font-semibold text-[18px] px-6 py-3 rounded-lg ${isSubmitting || membershipPlan && selectedDate
-                                    ? "bg-[#237FEA] border border-[#237FEA]"
-                                    : "bg-gray-400 border-gray-400 cursor-not-allowed"
+                                className={`text-white font-semibold text-[18px] px-6 py-3 rounded-lg ${isBooked
+                                    ? "bg-green-600 border-green-600 cursor-default"
+                                    : isSubmitting || membershipPlan && selectedDate
+                                        ? "bg-[#237FEA] border border-[#237FEA]"
+                                        : "bg-gray-400 border-gray-400 cursor-not-allowed"
                                     }`}
                             >
-                                {isSubmitting ? "Submitting..." : "Setup Direct Debit"}
+                                {isBooked
+                                    ? "Booked" : isSubmitting ? "Submitting..." : "Setup Direct Debit"}
                             </button>
 
 
