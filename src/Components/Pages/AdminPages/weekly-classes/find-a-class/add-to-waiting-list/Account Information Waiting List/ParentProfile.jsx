@@ -256,7 +256,8 @@ const ParentProfile = ({ profile }) => {
 
 
 
-    const paymentPlan = profile?.paymentPlans[0];
+    const paymentPlan = profile?.paymentPlans?.[0] ?? null;
+
     // Access the first booking's venue name
     const venueName = profile?.venue?.name;
     const MembershipPlan = paymentPlan?.title;

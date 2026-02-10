@@ -263,7 +263,8 @@ const StudentProfile = ({ profile }) => {
     const parents = profile.parents;
     const emergency = profile.emergency;
 
-    const paymentPlan = profile?.paymentPlans[0];
+    const paymentPlan = profile?.paymentPlans?.[0] ?? null;
+
     // Access the first booking's venue name
     const venueName = profile?.venue?.name;
     const MembershipPlan = paymentPlan?.title;
@@ -519,7 +520,7 @@ const StudentProfile = ({ profile }) => {
                                         <input
                                             type="text"
                                             className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3 text-base"
-                                            value={classSchedule?.className || ""}
+                                            value={student?.classSchedule?.className || ""}
                                             readOnly
                                         />
                                     </div>
@@ -528,7 +529,7 @@ const StudentProfile = ({ profile }) => {
                                         <input
                                             type="text"
                                             className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3 text-base"
-                                            value={classSchedule?.startTime || ""}
+                                            value={student?.classSchedule?.startTime || ""}
                                             readOnly
                                         />
                                     </div>

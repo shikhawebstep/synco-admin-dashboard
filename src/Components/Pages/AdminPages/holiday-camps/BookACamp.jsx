@@ -278,14 +278,14 @@ const BookACamp = () => {
     const keyInfoArray = htmlToArray(keyInfoData?.keyInformation || "");
     const keyInfoOptions = keyInfoArray.map((item) => ({ value: item, label: item }));
     const selectedLabel = keyInfoOptions.find((opt) => opt.value === selectedKeyInfo)?.label || "Key Information";
-
-    const ClassOptions = holidayCampsData?.venueClasses?.map((item) => ({
+    const classesWithCapacity = holidayCampsData?.venueClasses?.filter(cls => cls.capacity > 0) || [];
+    const ClassOptions = classesWithCapacity?.map((item) => ({
         value: item.id,
         label: item.className,
     })) || [];
 
     const handleClassChange = (index, classId) => {
-        const selectedClass = holidayCampsData?.venueClasses?.find(cls => cls.id === classId);
+        const selectedClass = classesWithCapacity?.find(cls => cls.id === classId);
         setFormData((prev) => {
             const next = JSON.parse(JSON.stringify(prev));
             next.students[index].class = classId;

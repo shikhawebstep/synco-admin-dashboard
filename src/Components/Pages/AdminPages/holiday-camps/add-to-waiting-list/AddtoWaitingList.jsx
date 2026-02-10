@@ -104,11 +104,11 @@ const HolidayAddtoWaitingList = () => {
     { value: "Father", label: "Father" },
     { value: "Guardian", label: "Guardian" },
   ];
-  const ClassOptions = singleClassSchedulesOnly?.venueClasses?.map((item) => ({
-    value: item.id,
-    label: item.className,
-  })) || [];
-
+    const classesWithoutCapacity = singleClassSchedulesOnly?.venueClasses?.filter(cls => cls.capacity == 0) || [];
+    const ClassOptions = classesWithoutCapacity?.map((item) => ({
+        value: item.id,
+        label: item.className,
+    })) || [];
   const hearOptions = [
     { value: "Google", label: "Google" },
     { value: "Facebook", label: "Facebook" },
@@ -380,7 +380,7 @@ const HolidayAddtoWaitingList = () => {
   };
 
   const handleClassChange = (index, classId) => {
-    const selectedClass = singleClassSchedulesOnly?.venueClasses?.find(cls => cls.id === classId);
+    const selectedClass = classesWithoutCapacity?.find(cls => cls.id === classId);
     const updatedStudents = [...students];
 
     updatedStudents[index].class = classId;
