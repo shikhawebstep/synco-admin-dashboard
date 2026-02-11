@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { useNavigate } from 'react-router-dom';
 import { showSuccess, showError, showLoading, showWarning } from "../../../../utils/swalHelper";
 const BookFreeTrialContext = createContext();
@@ -38,6 +38,11 @@ export const BookFreeTrialProvider = ({ children }) => {
     const dd = String(d.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`; // returns "2025-08-24"
   }
+
+  useEffect(() => {
+   setSearchTerm("");
+   setSelectedVenue(null);
+  }, [navigate]);
 
   const [formData, setFormData] = useState({
     area: "",
