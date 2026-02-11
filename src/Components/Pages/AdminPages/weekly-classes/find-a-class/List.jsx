@@ -971,8 +971,8 @@ const List = () => {
                           </div>
                           {showModal === venue.venueId && (
                             <div className=" absolute bg-opacity-30 flex right-2 items-center top-15 justify-center z-50">
-                              <div ref={iconContainerRef} className="flex z-[999999999] items-center justify-center w-full px-2 py-6 sm:px-2 md:py-2">
-                                <div ref={(el) => (modalRefs.current[venue.venueId] = el)} className="bg-white rounded-3xl p-4 sm:p-6 w-full max-w-4xl shadow-2xl">
+                              <div ref={iconContainerRef} className="flex z-[999999999] max-w-[900px] items-center justify-center px-2 py-6 sm:px-2 md:py-2">
+                                <div ref={(el) => (modalRefs.current[venue.venueId] = el)} className="bg-white rounded-3xl p-4 sm:p-6 w-full shadow-2xl">
                                   {/* Header */}
                                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-[#E2E1E5] pb-4 mb-4 gap-2">
                                     <h2 className="font-semibold text-[20px] sm:text-[24px]">Subscription Plan</h2>

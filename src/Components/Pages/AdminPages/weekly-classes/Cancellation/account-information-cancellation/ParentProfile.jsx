@@ -303,6 +303,14 @@ const ParentProfile = ({ ParentProfile }) => {
         }
     };
 
+     const hearOptions = [
+        { value: "Google", label: "Google" },
+        { value: "Facebook", label: "Facebook" },
+        { value: "Instagram", label: "Instagram" },
+        { value: "Friend", label: "Friend" },
+        { value: "Flyer", label: "Flyer" },
+    ];
+
     const monthOptions = [
         { value: 1, label: "1 Month" },
         { value: 2, label: "2 Months" },
@@ -399,11 +407,17 @@ const ParentProfile = ({ ParentProfile }) => {
 
                                     <div className="w-1/2">
                                         <label className="block text-[16px] font-semibold">How did you hear about us?</label>
-                                        <input
+                                        <select
                                             className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3 text-base"
                                             value={parent.howDidYouHear}
                                             readOnly
-                                        />
+                                        >
+                                            {hearOptions.map((option) => (
+                                                <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
                             </div>

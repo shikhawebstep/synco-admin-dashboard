@@ -211,6 +211,13 @@ const CandidateVenueDetails = () => {
       )
     );
   };
+      const hearOptions = [
+    { value: "Google", label: "Google" },
+    { value: "Facebook", label: "Facebook" },
+    { value: "Instagram", label: "Instagram" },
+    { value: "Friend", label: "Friend" },
+    { value: "Flyer", label: "Flyer" },
+  ];
 
   useEffect(() => {
     fetchComments();
@@ -270,7 +277,12 @@ const CandidateVenueDetails = () => {
               <div className="space-y-1">
                 <label className="text-[16px] font-semibold block">How did you hear about us?</label>
                 <select className="input border border-[#E2E1E5]  rounded-xl w-full p-3">
-                  <option>Indeed</option>
+               
+                  {hearOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 

@@ -525,6 +525,14 @@ const ParentProfile = ({ profile }) => {
             }
         });
     };
+
+    const hearOptions = [
+        { value: "Google", label: "Google" },
+        { value: "Facebook", label: "Facebook" },
+        { value: "Instagram", label: "Instagram" },
+        { value: "Friend", label: "Friend" },
+        { value: "Flyer", label: "Flyer" },
+    ];
     if (loading) return <Loader />;
 
 
@@ -643,14 +651,22 @@ const ParentProfile = ({ profile }) => {
                                             <label className="block text-[16px] font-semibold">
                                                 How did you hear about us?
                                             </label>
-                                            <input
+                                            <select
                                                 className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3 text-base"
                                                 value={parent.howDidYouHear}
                                                 readOnly={editingIndex !== index}
                                                 onChange={(e) =>
                                                     handleDataChange(index, "howDidYouHear", e.target.value)
                                                 }
-                                            />
+                                            >
+
+
+                                                {hearOptions.map((option) => (
+                                                    <option key={option.value} value={option.value}>
+                                                        {option.label}
+                                                    </option>
+                                                ))}
+                                            </select>
                                         </div>
                                     </div>
                                 </div>

@@ -159,7 +159,7 @@ const ParentProfile = ({ profile }) => {
 
         try {
             // Loader skipped
- setLoadingComment(true)
+            setLoadingComment(true)
 
             const response = await fetch(`${API_BASE_URL}/api/admin/waiting-list/comment/create`, requestOptions);
 
@@ -178,10 +178,10 @@ const ParentProfile = ({ profile }) => {
             fetchComments();
         } catch (error) {
             console.error("Error creating member:", error);
-             setLoadingComment(false)
+            setLoadingComment(false)
             showError("Network Error", error.message || "An error occurred while submitting the form.");
-        }finally{
-             setLoadingComment(false)
+        } finally {
+            setLoadingComment(false)
         }
     }
 
@@ -321,7 +321,13 @@ const ParentProfile = ({ profile }) => {
 
         return `${month} ${day} ${year}, ${hours}:${minutes}`;
     }
-
+    const hearOptions = [
+        { value: "Google", label: "Google" },
+        { value: "Facebook", label: "Facebook" },
+        { value: "Instagram", label: "Instagram" },
+        { value: "Friend", label: "Friend" },
+        { value: "Flyer", label: "Flyer" },
+    ];
 
 
     const getStatusBgColor = (status) => {
@@ -560,14 +566,20 @@ const ParentProfile = ({ profile }) => {
                                         <label className="block text-[16px] font-semibold">
                                             How did you hear about us?
                                         </label>
-                                        <input
+                                        <select
                                             className="w-full mt-2 border border-gray-300 rounded-xl px-4 py-3 text-base"
                                             value={parent.howDidYouHear}
                                             readOnly={editingIndex !== index}
                                             onChange={(e) =>
                                                 handleDataChange(index, "howDidYouHear", e.target.value)
                                             }
-                                        />
+                                        >
+                                            {hearOptions.map((option) => (
+                                                <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
                             </div>

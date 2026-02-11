@@ -583,7 +583,7 @@ const BookACamp = () => {
         const tokenLocal = localStorage.getItem("adminToken");
         if (!tokenLocal) return;
         try {
-            
+
             setCommentLoading(true);
             const response = await fetch(`${API_BASE_URL}/api/admin/holiday/comment/create`, {
                 method: "POST",
@@ -776,9 +776,11 @@ const BookACamp = () => {
             type: "select",
             label: "How Did You Hear About Us",
             options: [
+                { value: "Google", label: "Google" },
+                { value: "Facebook", label: "Facebook" },
+                { value: "Instagram", label: "Instagram" },
                 { value: "Friend", label: "Friend" },
-                { value: "Website", label: "Website" },
-                { value: "Other", label: "Other" }
+                { value: "Flyer", label: "Flyer" },
             ]
         },
     ];

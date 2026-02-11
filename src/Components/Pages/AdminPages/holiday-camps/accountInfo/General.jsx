@@ -247,7 +247,14 @@ const General = () => {
     }
     useEffect(() => {
         fetchComments();
-    }, [])
+    }, []);
+    const hearOptions = [
+        { value: "Google", label: "Google" },
+        { value: "Facebook", label: "Facebook" },
+        { value: "Instagram", label: "Instagram" },
+        { value: "Friend", label: "Friend" },
+        { value: "Flyer", label: "Flyer" },
+    ];
 
     const studentInputs = [
         { name: "firstName", placeholder: "Enter First Name", type: "text", label: "First Name" },
@@ -263,7 +270,7 @@ const General = () => {
         { name: "lastName", placeholder: "Enter Last Name", type: "text", label: "Last Name" },
         { name: "email", placeholder: "Enter Email", type: "email", label: "Email" },
         { name: "phone", placeholder: "Phone Number", type: "phone", label: "Phone Number" },
-        { name: "referral", placeholder: "How did you hear about us?", type: "select", options: ["Friend", "Website", "Other"], label: "How Did You Hear About Us" },
+        { name: "referral", placeholder: "How did you hear about us?", type: "select", options: hearOptions, label: "How Did You Hear About Us?" },
     ];
 
     const renderInputs = (inputs, section, index = null) => {
@@ -490,7 +497,7 @@ const General = () => {
                                 className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-[16px] font-semibold outline-none md:w-full w-5/12"
                             />
                             <button
-                            disabled={commentLoading}
+                                disabled={commentLoading}
                                 className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                                 onClick={handleSubmitComment}
                             >

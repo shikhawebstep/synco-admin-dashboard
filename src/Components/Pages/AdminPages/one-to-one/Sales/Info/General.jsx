@@ -266,7 +266,13 @@ const General = () => {
 
 
 
-
+    const hearOptions = [
+    { value: "Google", label: "Google" },
+    { value: "Facebook", label: "Facebook" },
+    { value: "Instagram", label: "Instagram" },
+    { value: "Friend", label: "Friend" },
+    { value: "Flyer", label: "Flyer" },
+  ];
     const studentInputs = [
         { name: "firstName", placeholder: "Enter First Name", type: "text", label: "First Name" },
         { name: "lastName", placeholder: "Enter Last Name", type: "text", label: "Last Name" },
@@ -281,7 +287,7 @@ const General = () => {
         { name: "lastName", placeholder: "Enter Last Name", type: "text", label: "Last Name" },
         { name: "email", placeholder: "Enter Email", type: "email", label: "Email" },
         { name: "phone", placeholder: "Phone Number", type: "phone", label: "Phone Number" },
-        { name: "referral", placeholder: "How did you hear about us?", type: "select", options: ["Friend", "Website", "Other"], label: "How Did You Hear About Us" },
+        { name: "referral", placeholder: "How did you hear about us?", type: "select", options: hearOptions, label: "How Did You Hear About Us" },
     ];
 
     const renderInputs = (inputs, section, index = null) => (
