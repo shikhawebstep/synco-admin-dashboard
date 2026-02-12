@@ -7,11 +7,12 @@ import {
 import {
   FaFont, FaHeading, FaImage, FaRegImage, FaMousePointer, FaColumns,
   FaList, FaShareAlt, FaCompass, FaMinus, FaChevronCircleDown,
-  FaIdCard, FaLayerGroup, FaMagic, FaStar, FaInfoCircle, FaVideo
+  FaIdCard, FaLayerGroup, FaMagic, FaStar, FaInfoCircle,
 } from "react-icons/fa";
 
 import BlockRenderer, { AdvancedStyleControls } from "./BlockRenderer";
 import PreviewModal from "./PreviewModal";
+import { useCommunicationTemplate } from "../contexts/CommunicationContext";
 
 export default function TemplateBuilder({
   blocks,
@@ -30,13 +31,65 @@ export default function TemplateBuilder({
     }
   }, [selectedBlockId]);
 
-  const updateStyle = (key, value) => {
+  const { apiTemplates } = useCommunicationTemplate();
+
+  useEffect(() => {
+    if (!apiTemplates?.content) return;
+
+    try {
+      const parsed = JSON.parse(apiTemplates.content);
+
+      // ✅ Set subject
+      setSubject(parsed.subject || "");
+
+      // ✅ If backend only stored HTML
+      if (parsed.htmlContent) {
+        setBlocks([
+          {
+            id: crypto.randomUUID(),
+            type: "customHTML",
+            content: parsed.htmlContent,
+            style: {
+              backgroundColor: "transparent",
+              padding: 10,
+            },
+          },
+        ]);
+      }
+
+      // ✅ If future backend stores blocks properly
+      if (parsed.blocks) {
+        setBlocks(parsed.blocks);
+      }
+
+    } catch (error) {
+      console.error("Template parse error:", error);
+    }
+  }, [apiTemplates, setBlocks, setSubject]);
+
+
+
+
+
+  const updateStyle = (key, value, rootKey = null) => {
     setBlocks((prev) =>
-      prev.map((b) =>
-        b.id === selectedBlockId
-          ? { ...b, style: { ...(b.style || {}), [key]: value } }
-          : b
-      )
+      prev.map((b) => {
+        if (b.id !== selectedBlockId) return b;
+
+        // If rootKey is true, update the property on the block root
+        if (rootKey === true) return { ...b, [key]: value };
+
+        // If rootKey is a string (e.g., 'titleStyle'), update property within that object
+        if (typeof rootKey === 'string') {
+          return {
+            ...b,
+            [rootKey]: { ...(b[rootKey] || {}), [key]: value }
+          };
+        }
+
+        // Default: update property within the 'style' object
+        return { ...b, style: { ...(b.style || {}), [key]: value } };
+      })
     );
   };
 
@@ -44,21 +97,15 @@ export default function TemplateBuilder({
   const sidebarBlocks = [
     { id: "text", label: "Text field", icon: <FaFont /> },
     { id: "heading", label: "Heading", icon: <FaHeading /> },
-    { id: "banner", label: "Banner/Header", icon: <FaImage /> },
     { id: "image", label: "Image", icon: <FaRegImage /> },
     { id: "btn", label: "Button", icon: <FaMousePointer /> },
     { id: "sectionGrid", label: "Section Grid", icon: <FaColumns /> },
-    { id: "featureGrid", label: "Feature Grid", icon: <FaList /> },
     { id: "socialLinks", label: "Social Links", icon: <FaShareAlt /> },
-    { id: "navigation", label: "Navigation", icon: <FaCompass /> },
     { id: "divider", label: "Divider", icon: <FaMinus /> },
-    { id: "accordion", label: "Accordion", icon: <FaChevronCircleDown /> },
-    { id: "card", label: "Card", icon: <FaIdCard /> },
     { id: "cardRow", label: "Cards in Row", icon: <FaLayerGroup /> },
-    { id: "customSection", label: "Custom Section", icon: <FaMagic /> },
     { id: "heroSection", label: "Hero (Wavy)", icon: <FaStar /> },
     { id: "infoBox", label: "Info Box", icon: <FaInfoCircle /> },
-    { id: "videoGrid", label: "Video Grid", icon: <FaVideo /> },
+    { id: "footerBlock", label: "Footer", icon: <FaInfoCircle /> },
   ];
 
   const addBlock = async (type, columnCount = 2) => {
@@ -110,14 +157,6 @@ export default function TemplateBuilder({
     } else if (type === "customSection") {
       newBlock.style.padding = 40;
       newBlock.style.textAlign = "center";
-    } else if (type === "card") {
-      newBlock.title = "Card Title";
-      newBlock.description = "Card description goes here.";
-      newBlock.style.backgroundColor = "#ffffff";
-      newBlock.style.borderRadius = 12;
-      newBlock.style.padding = 20;
-    } else if (type === "banner") {
-      newBlock.style.padding = 0;
     } else if (type === "btn") {
       newBlock.style.backgroundColor = "#237FEA";
       newBlock.style.textColor = "#ffffff";
@@ -143,12 +182,6 @@ export default function TemplateBuilder({
       newBlock.links = [
         { platform: "facebook", url: "https://facebook.com" },
         { platform: "instagram", url: "https://instagram.com" }
-      ];
-    } else if (type === "navigation") {
-      newBlock.style.textAlign = "center";
-      newBlock.links = [
-        { label: "Home", url: "/" },
-        { label: "About", url: "/about" }
       ];
     } else if (type === "divider") {
       newBlock.style.padding = 20;
@@ -236,51 +269,66 @@ export default function TemplateBuilder({
         </div>
         <DragDropContext onDragEnd={onDragEnd}>
           <Droppable droppableId="canvas">
-            {(provided) => (
-              <div {...provided.droppableProps} ref={provided.innerRef}>
+            {(provided, snapshot) => (
+              <div
+                {...provided.droppableProps}
+                ref={provided.innerRef}
+                className={`min-h-[200px] rounded-lg transition-colors ${snapshot.isDraggingOver ? "bg-blue-50 ring-2 ring-blue-100 ring-inset" : ""}`}
+              >
                 {blocks.map((block, index) => (
                   <Draggable
                     key={block.id}
                     draggableId={block.id}
                     index={index}
                   >
-                    {(provided) => (
+                    {(provided, snapshot) => (
                       <div
-                        className="bg-white p-4 rounded-lg border border-gray-200 mb-4 shadow-sm"
+                        className={`bg-white rounded-lg border border-gray-200 mb-2 shadow-sm transition-shadow ${snapshot.isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""}`}
                         {...provided.draggableProps}
                         ref={provided.innerRef}
+                        style={{
+                          ...provided.draggableProps.style,
+                          // Maintain original transform but ensure z-index in portal if needed (though not using portal here)
+                        }}
                       >
-                        {/* Block header */}
-                        <div className="flex justify-between mb-2 text-sm">
-                          <div {...provided.dragHandleProps} className="cursor-grab text-gray-500">
-                            ⠿
+                        {/* Block wrapper padding is applied here or inside content. 
+                             Using p-2 to reduce gap. Header takes space. 
+                             BlockRenderer has its own padding/margin from style. 
+                         */}
+                        <div className="p-2 border-b border-gray-50 flex justify-between items-center text-xs bg-gray-50/50 rounded-t-lg">
+                          <div {...provided.dragHandleProps} className="cursor-grab text-gray-400 hover:text-gray-600 px-2 py-1">
+                            <FaLayerGroup className="inline mr-1" /> <span className="uppercase font-bold tracking-wider">{block.type}</span>
                           </div>
 
-                          <div className="flex gap-2">
+                          <div className="flex gap-1">
                             <button
                               onClick={() => duplicateBlock(block.id)}
-                              className="px-2 py-1 text-white  bg-[#237FEA] rounded-xl"
+                              className="p-1.5 text-blue-600 hover:bg-blue-100 rounded transition"
+                              title="Duplicate"
                             >
-                              Duplicate
+                              <FaList />
                             </button>
 
                             <button
                               onClick={() => deleteBlock(block.id)}
-                              className="px-2 py-1 text-white   bg-red-500 rounded-xl"
+                              className="p-1.5 text-red-500 hover:bg-red-100 rounded transition"
+                              title="Delete"
                             >
-                              Delete
+                              <FaMinus />
                             </button>
                           </div>
                         </div>
 
                         {/* Block Body */}
-                        <BlockRenderer
-                          block={block}
-                          blocks={blocks}
-                          setBlocks={setBlocks}
-                          isSelected={selectedBlockId === block.id}
-                          onSelect={() => setSelectedBlockId(block.id)}
-                        />
+                        <div className="p-3">
+                          <BlockRenderer
+                            block={block}
+                            blocks={blocks}
+                            setBlocks={setBlocks}
+                            isSelected={selectedBlockId === block.id}
+                            onSelect={() => setSelectedBlockId(block.id)}
+                          />
+                        </div>
                       </div>
                     )}
                   </Draggable>
@@ -360,10 +408,27 @@ export default function TemplateBuilder({
               <h3 className="font-semibold text-sm text-gray-400 uppercase mb-4 tracking-widest">Variables</h3>
               <div className="grid grid-cols-1 gap-2">
                 {[
-                  { label: "First Name", value: "{FirstName}" },
-                  { label: "Last Name", value: "{LastName}" },
-                  { label: "Company", value: "{Company}" },
-                  { label: "Link", value: "{Link}" },
+                  { label: "First Name", value: "{{FirstName}}" },
+                  { label: "Last Name", value: "{{LastName}}" },
+                  { label: "Parent Name", value: "{{parentName}}" },
+                  { label: "Parent Email", value: "{{parentEmail}}" },
+                  { label: "Parent Password", value: "{{parentPassword}}" },
+                  { label: "Student First Name", value: "{{studentFirstName}}" },
+                  { label: "Student Last Name", value: "{{studentLastName}}" },
+                  { label: "Kids Playing", value: "{{kidsPlaying}}" },
+                  { label: "Venue Name", value: "{{venueName}}" },
+                  { label: "Facility", value: "{{facility}}" },
+                  { label: "Class Name", value: "{{className}}" },
+                  { label: "Class Time", value: "{{classTime}}" },
+                  { label: "Time", value: "{{time}}" },
+                  { label: "Start Date", value: "{{startDate}}" },
+                  { label: "End Date", value: "{{endDate}}" },
+                  { label: "Trial Date", value: "{{trialDate}}" },
+                  { label: "Price", value: "{{price}}" },
+                  { label: "Logo URL", value: "{{logoUrl}}" },
+                  { label: "Students List (HTML)", value: "{{studentsHtml}}" },
+                  { label: "Company", value: "{{Company}}" },
+                  { label: "Link", value: "{{Link}}" },
                 ].map((v) => (
                   <div
                     key={v.value}

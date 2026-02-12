@@ -183,8 +183,12 @@ const List = () => {
         : allPaymentPlans;
     // console.log('singleClassSchedulesOnly', singleClassSchedulesOnly)
 
+
+    const classesWithCapacity = Array.isArray(singleClassSchedulesOnly?.venue?.classSchedules) ? singleClassSchedulesOnly?.venue?.classSchedules?.filter((cls) => {
+        return cls.capacity > 0;
+    }) : [];
     const handleStudentClassChange = (index, selectedOption) => {
-        const selectedClass = singleClassSchedulesOnly?.venueClasses?.find(
+        const selectedClass = classesWithCapacity?.find(
             (cls) => cls.id === selectedOption.value
         );
 
@@ -198,7 +202,7 @@ const List = () => {
             return updated;
         });
     };
-    const venueClassOptions = singleClassSchedulesOnly?.venueClasses?.map((cls) => ({
+    const venueClassOptions = classesWithCapacity?.map((cls) => ({
         value: cls.id,
         label: cls.className
     }));

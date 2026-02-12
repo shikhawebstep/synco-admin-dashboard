@@ -1,13 +1,33 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
-import { FaPlay, FaImage, FaPlus, FaAlignLeft, FaAlignCenter, FaAlignRight, FaAlignJustify, FaChevronDown, FaChevronUp, FaPalette, FaFont, FaArrowsAltV, FaBorderAll, FaLayerGroup } from "react-icons/fa";
+import {
+  FaPlay, FaImage, FaPlus, FaAlignLeft, FaAlignCenter, FaAlignRight, FaAlignJustify,
+  FaChevronDown, FaChevronUp, FaPalette, FaFont, FaArrowsAltV, FaBorderAll,
+  FaLayerGroup, FaHeading, FaMousePointer, FaCode, FaCopy, FaTrashAlt,
+  FaCog, FaTimes, FaStickyNote, FaFacebookF, FaInstagram, FaYoutube,
+  FaLinkedinIn, FaTwitter, FaShoppingCart
+} from "react-icons/fa";
 
 const VARIABLE_OPTIONS = [
-  { label: "First Name", value: "{FirstName}" },
-  { label: "Last Name", value: "{LastName}" },
-  { label: "Company", value: "{Company}" },
-  { label: "Link", value: "{Link}" },
+
+  { label: "Parent Password", value: "{{parentPassword}}" },
+  { label: "Student First Name", value: "{{studentFirstName}}" },
+  { label: "Student Last Name", value: "{{studentLastName}}" },
+  { label: "Kids Playing", value: "{{kidsPlaying}}" },
+  { label: "Venue Name", value: "{{venueName}}" },
+  { label: "Facility", value: "{{facility}}" },
+  { label: "Class Name", value: "{{className}}" },
+  { label: "Class Time", value: "{{classTime}}" },
+  { label: "Time", value: "{{time}}" },
+  { label: "Start Date", value: "{{startDate}}" },
+  { label: "End Date", value: "{{endDate}}" },
+  { label: "Trial Date", value: "{{trialDate}}" },
+  { label: "Price", value: "{{price}}" },
+  { label: "Logo URL", value: "{{logoUrl}}" },
+  { label: "Students List (HTML)", value: "{{studentsHtml}}" },
+  { label: "Company", value: "{{Company}}" },
+  { label: "Link", value: "{{Link}}" },
 ];
 
 const VariableTextarea = ({ value, onChange, className, placeholder, style }) => {
@@ -34,7 +54,7 @@ const VariableTextarea = ({ value, onChange, className, placeholder, style }) =>
 
   return (
     <div className="relative group/vars">
-      <div className="absolute right-0 -top-7 opacity-0 group-hover/vars:opacity-100 transition-opacity bg-white border border-gray-200 shadow-lg rounded-lg flex gap-1 p-1 z-50">
+      <div className="absolute left-10 -top-7 opacity-0 group-hover/vars:opacity-100 transition-opacity bg-white border border-gray-200 shadow-lg rounded-lg flex gap-1 p-1 z-50">
         {VARIABLE_OPTIONS.map(v => (
           <button
             key={v.value}
@@ -62,8 +82,203 @@ const VariableTextarea = ({ value, onChange, className, placeholder, style }) =>
   );
 };
 
-export const AdvancedStyleControls = ({ block, updateStyle }) => {
+const TextEditor = ({ value, onChange, style, placeholder, readOnly }) => {
+  const [localValue, setLocalValue] = useState(value || "");
+
+  useEffect(() => {
+    if (value !== localValue) {
+      setLocalValue(value || "");
+    }
+  }, [value]);
+
+  const handleChange = (val) => {
+    setLocalValue(val);
+  };
+
+  const handleBlur = () => {
+    onChange(localValue);
+  };
+
+  if (readOnly) {
+    return (
+      <div className="ql-container ql-snow" style={{ border: "none" }}>
+        <div
+          className="ql-editor rich-text-content"
+          style={{
+            ...style,
+            padding: 0,
+            overflow: "visible",
+            height: "auto",
+            overflowWrap: "break-word",
+            wordBreak: "break-word",
+          }}
+          dangerouslySetInnerHTML={{ __html: value }}
+        />
+        <style>
+          {`
+            .rich-text-content ul { display: block; list-style-type: disc !important; padding-left: 1.5em !important; margin-bottom: 1em; }
+            .rich-text-content ol { display: block; list-style-type: decimal !important; padding-left: 1.5em !important; margin-bottom: 1em; }
+            .rich-text-content li { display: list-item; }
+          `}
+        </style>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-2 border border-dashed border-gray-200 rounded-lg min-h-[100px] bg-white hover:border-blue-400 transition" onBlur={handleBlur}>
+      <ReactQuill
+        theme="snow"
+        value={localValue}
+        onChange={handleChange}
+        placeholder={placeholder}
+        modules={{
+          toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            ['link', 'clean']
+          ],
+        }}
+      />
+      <style>
+        {`
+          .ql-editor {
+            color: ${style.color};
+            font-size: ${style.fontSize};
+            font-weight: ${style.fontWeight};
+            text-align: ${style.textAlign};
+            font-family: ${style.fontFamily};
+            line-height: ${style.lineHeight};
+            letter-spacing: ${style.letterSpacing};
+            text-decoration: ${style.textDecoration};
+            text-transform: ${style.textTransform};
+          }
+        `}
+      </style>
+    </div>
+  );
+};
+
+const getCommonStyles = (b) => ({
+  width: b.style?.width || "100%",
+  maxWidth: b.style?.maxWidth || "100%",
+  height: b.style?.height || "auto",
+  minHeight: b.style?.minHeight,
+  marginTop: b.style?.marginTop,
+  marginBottom: b.style?.marginBottom,
+  padding: b.style?.padding,
+  backgroundColor: b.style?.backgroundColor,
+  backgroundImage: b.style?.backgroundImage || "none",
+  backgroundSize: b.style?.backgroundSize || "cover",
+  backgroundPosition: b.style?.backgroundPosition || "center",
+  borderRadius: b.style?.borderRadius,
+  border: `${b.style?.borderWidth || 0}px ${b.style?.borderStyle || "solid"} ${b.style?.borderColor || "transparent"}`,
+  display: b.style?.display || "block",
+  flexDirection: b.style?.flexDirection,
+  gap: b.style?.gap !== undefined ? `${b.style.gap}px` : undefined,
+  alignItems: b.style?.alignItems,
+  justifyContent: b.style?.justifyContent,
+  boxShadow: b.style?.boxShadow,
+  textAlign: b.style?.textAlign,
+  opacity: b.style?.opacity,
+  zIndex: b.style?.zIndex,
+  objectFit: b.style?.objectFit || "fill",
+
+  // Typography
+  fontFamily: b.style?.fontFamily,
+  fontSize: b.style?.fontSize,
+  fontWeight: b.style?.fontWeight,
+  color: b.style?.textColor,
+  lineHeight: b.style?.lineHeight,
+  letterSpacing: b.style?.letterSpacing,
+  textDecoration: b.style?.textDecoration,
+  textTransform: b.style?.textTransform,
+});
+
+const CustomHTMLRenderer = ({ block, update, readOnly, isSelected, onSelect }) => {
+  const [editMode, setEditMode] = useState(false);
+  const [localCode, setLocalCode] = useState(block.content || "");
+
+  // Sync
+  useEffect(() => {
+    if (!editMode) {
+      setLocalCode(block.content || "");
+    }
+  }, [block.content, editMode]);
+
+  if (readOnly) {
+    return <div style={{ ...getCommonStyles(block), overflow: 'hidden' }} dangerouslySetInnerHTML={{ __html: block.content }} />
+  }
+
+  return (
+    <div
+      className={`relative group ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+      onClick={onSelect}
+    >
+      {editMode ? (
+        <div className="p-3 bg-gray-900 rounded-lg border border-gray-700 shadow-xl">
+          <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
+            <span className="text-xs text-gray-400 font-mono flex gap-2 items-center"><FaCode /> HTML Source Editor</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEditMode(false)}
+                className="text-xs text-gray-400 hover:text-white px-2 py-1"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  update("content", localCode);
+                  setEditMode(false);
+                }}
+                className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 font-bold"
+              >
+                Save HTML
+              </button>
+            </div>
+          </div>
+          <textarea
+            className="w-full h-80 bg-gray-950 text-green-400 font-mono text-xs p-3 outline-none border border-gray-800 rounded resize-y leading-relaxed"
+            value={localCode}
+            onChange={(e) => setLocalCode(e.target.value)}
+            spellCheck={false}
+          />
+        </div>
+      ) : (
+        <>
+          <div
+            className="p-2 min-h-[50px] relative"
+            style={getCommonStyles(block)}
+          >
+            <div dangerouslySetInnerHTML={{ __html: block.content }} />
+            {/* Overlay to catch clicks if content is empty or tricky */}
+            {!block.content && <div className="text-gray-400 text-center italic p-4 border border-dashed border-gray-300 rounded">Empty Custom HTML Block</div>}
+          </div>
+          {isSelected && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditMode(true);
+              }}
+              className="absolute top-2 right-2 bg-blue-600 shadow-lg text-white px-3 py-1.5 rounded-full text-xs hover:bg-blue-700 transition z-50 flex items-center gap-2 font-bold transform hover:scale-105"
+            >
+              <FaCode /> Edit Code
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  )
+};
+
+export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) => {
   const [openSection, setOpenSection] = useState("typography");
+
+  const updateStyle = (key, value, rootKey = null) => {
+    rawUpdateStyle(key, value, rootKey);
+  };
 
   const Section = ({ id, title, icon, children }) => {
     const isOpen = openSection === id;
@@ -91,7 +306,7 @@ export const AdvancedStyleControls = ({ block, updateStyle }) => {
         <div className="col-span-2 flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Font Family</label>
           <select
-            value={block.style?.fontFamily || "inherit"}
+            value={block?.style?.fontFamily || "inherit"}
             onChange={(e) => updateStyle("fontFamily", e.target.value)}
             className="text-xs border rounded p-1 bg-white h-8"
           >
@@ -105,12 +320,12 @@ export const AdvancedStyleControls = ({ block, updateStyle }) => {
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({block.style?.fontSize}px)</label>
-          <input type="range" min="10" max="100" value={block.style?.fontSize || 16} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({block?.style?.fontSize}px)</label>
+          <input type="range" min="10" max="100" value={block?.style?.fontSize || 16} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Weight</label>
-          <select value={block.style?.fontWeight || "normal"} onChange={(e) => updateStyle("fontWeight", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
+          <select value={block?.style?.fontWeight || "normal"} onChange={(e) => updateStyle("fontWeight", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
             <option value="normal">Normal</option>
             <option value="500">Medium</option>
             <option value="700">Bold</option>
@@ -126,38 +341,94 @@ export const AdvancedStyleControls = ({ block, updateStyle }) => {
               { val: "right", icon: <FaAlignRight /> },
               { val: "justify", icon: <FaAlignJustify /> }
             ].map(opt => (
-              <button key={opt.val} onClick={() => updateStyle("textAlign", opt.val)} className={`p-1 rounded ${block.style?.textAlign === opt.val ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>
+              <button key={opt.val} onClick={() => updateStyle("textAlign", opt.val)} className={`p-1 rounded ${block?.style?.textAlign === opt.val ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>
                 {opt.icon}
               </button>
             ))}
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Text Color</label>
-          <div className="flex items-center gap-2 h-8">
-            <input type="color" value={block.style?.textColor || "#000000"} onChange={(e) => updateStyle("textColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-            <span className="text-[10px] text-gray-400">{block.style?.textColor}</span>
-          </div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Color</label>
+          <input type="color" value={block?.style?.textColor || "#000000"} onChange={(e) => updateStyle("textColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
         </div>
       </Section>
+
+      {block?.type === "footerBlock" && (
+        <>
+          <Section id="titleStyles" title="Footer Title Style" icon={<FaHeading />}>
+            <div className="col-span-2 flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Font Family</label>
+              <select
+                value={block.titleStyle?.fontFamily || "Georgia, serif"}
+                onChange={(e) => updateStyle("fontFamily", e.target.value, "titleStyle")}
+                className="text-xs border rounded p-1 bg-white h-8"
+              >
+                <option value="'Inter', sans-serif">Inter</option>
+                <option value="'Outfit', sans-serif">Outfit</option>
+                <option value="Georgia, serif">Georgia</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({block.titleStyle?.fontSize || 32}px)</label>
+              <input type="range" min="10" max="100" value={block.titleStyle?.fontSize || 32} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "titleStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Weight</label>
+              <select value={block.titleStyle?.fontWeight || "700"} onChange={(e) => updateStyle("fontWeight", e.target.value, "titleStyle")} className="text-xs border rounded p-1 bg-white h-8">
+                <option value="normal">Normal</option>
+                <option value="700">Bold</option>
+                <option value="900">Black</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Color</label>
+              <input type="color" value={block.titleStyle?.textColor || "#ffffff"} onChange={(e) => updateStyle("textColor", e.target.value, "titleStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+            </div>
+          </Section>
+
+          <Section id="subtitleStyles" title="Footer Subtitle" icon={<FaAlignLeft />}>
+            <div className="col-span-2 flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Font Family</label>
+              <select
+                value={block?.subtitleStyle?.fontFamily || "inherit"}
+                onChange={(e) => updateStyle("fontFamily", e.target.value, "subtitleStyle")}
+                className="text-xs border rounded p-1 bg-white h-8"
+              >
+                <option value="inherit">Default</option>
+                <option value="'Inter', sans-serif">Inter</option>
+                <option value="'Outfit', sans-serif">Outfit</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({block?.subtitleStyle?.fontSize || 16}px)</label>
+              <input type="range" min="10" max="40" value={block?.subtitleStyle?.fontSize || 16} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "subtitleStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Color</label>
+              <input type="color" value={block?.subtitleStyle?.textColor || "#ffffff"} onChange={(e) => updateStyle("textColor", e.target.value, "subtitleStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+            </div>
+          </Section>
+        </>
+      )
+      }
 
       {/* Spacing & Layout */}
       <Section id="spacing" title="Spacing & Layout" icon={<FaLayerGroup />}>
         <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Padding ({block.style?.padding || 0}px)</label>
-          <input type="range" min="0" max="100" value={block.style?.padding || 0} onChange={(e) => updateStyle("padding", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Padding ({block?.style?.padding || 0}px)</label>
+          <input type="range" min="0" max="100" value={block?.style?.padding || 0} onChange={(e) => updateStyle("padding", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Margin Top</label>
-          <input type="number" value={block.style?.marginTop} onChange={(e) => updateStyle("marginTop", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" placeholder="px" />
+          <input type="number" value={block?.style?.marginTop} onChange={(e) => updateStyle("marginTop", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" placeholder="px" />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Margin Btm</label>
-          <input type="number" value={block.style?.marginBottom} onChange={(e) => updateStyle("marginBottom", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" placeholder="px" />
+          <input type="number" value={block?.style?.marginBottom} onChange={(e) => updateStyle("marginBottom", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" placeholder="px" />
         </div>
         <div className="col-span-2 flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Display</label>
-          <select value={block.style?.display || "block"} onChange={(e) => updateStyle("display", e.target.value)} className="text-xs border rounded p-1 bg-white w-full h-8">
+          <select value={block?.style?.display || "block"} onChange={(e) => updateStyle("display", e.target.value)} className="text-xs border rounded p-1 bg-white w-full h-8">
             <option value="block">Block</option>
             <option value="flex">Flex</option>
             <option value="grid">Grid</option>
@@ -166,12 +437,21 @@ export const AdvancedStyleControls = ({ block, updateStyle }) => {
         {(block.style?.display === "flex" || block.style?.display === "grid") && (
           <>
             <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Direction</label>
+              <select value={block?.style?.flexDirection || "row"} onChange={(e) => updateStyle("flexDirection", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
+                <option value="row">Row</option>
+                <option value="column">Column</option>
+                <option value="row-reverse">Row Reverse</option>
+                <option value="column-reverse">Column Reverse</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Gap</label>
-              <input type="number" value={block.style?.gap} onChange={(e) => updateStyle("gap", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" />
+              <input type="number" value={block?.style?.gap} onChange={(e) => updateStyle("gap", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Align Items</label>
-              <select value={block.style?.alignItems || "stretch"} onChange={(e) => updateStyle("alignItems", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
+              <select value={block?.style?.alignItems || "stretch"} onChange={(e) => updateStyle("alignItems", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
                 <option value="stretch">Stretch</option>
                 <option value="center">Center</option>
                 <option value="flex-start">Start</option>
@@ -180,7 +460,7 @@ export const AdvancedStyleControls = ({ block, updateStyle }) => {
             </div>
             <div className="col-span-2 flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Justify Content</label>
-              <select value={block.style?.justifyContent || "start"} onChange={(e) => updateStyle("justifyContent", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
+              <select value={block?.style?.justifyContent || "start"} onChange={(e) => updateStyle("justifyContent", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
                 <option value="start">Start</option>
                 <option value="center">Center</option>
                 <option value="space-between">Space Between</option>
@@ -196,7 +476,7 @@ export const AdvancedStyleControls = ({ block, updateStyle }) => {
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">BG Color</label>
           <div className="flex items-center gap-2 h-8">
-            <input type="color" value={block.style?.backgroundColor || "#ffffff"} onChange={(e) => updateStyle("backgroundColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+            <input type="color" value={block?.style?.backgroundColor || "#ffffff"} onChange={(e) => updateStyle("backgroundColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
           </div>
         </div>
         <div className="col-span-2 flex flex-col gap-1">
@@ -205,7 +485,7 @@ export const AdvancedStyleControls = ({ block, updateStyle }) => {
             <input
               type="text"
               placeholder="Image URL"
-              value={block.style?.backgroundImage?.replace(/url\(["']?|["']?\)/g, '') || ""}
+              value={block?.style?.backgroundImage?.replace(/url\(["']?|["']?\)/g, '') || ""}
               onChange={(e) => updateStyle("backgroundImage", e.target.value ? `url("${e.target.value}")` : "")}
               className="text-xs border rounded p-1 flex-1 h-8"
             />
@@ -226,7 +506,7 @@ export const AdvancedStyleControls = ({ block, updateStyle }) => {
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">BG Size</label>
-          <select value={block.style?.backgroundSize || "cover"} onChange={(e) => updateStyle("backgroundSize", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
+          <select value={block?.style?.backgroundSize || "cover"} onChange={(e) => updateStyle("backgroundSize", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
             <option value="cover">Cover</option>
             <option value="contain">Contain</option>
             <option value="auto">Auto</option>
@@ -235,7 +515,7 @@ export const AdvancedStyleControls = ({ block, updateStyle }) => {
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">BG Position</label>
-          <select value={block.style?.backgroundPosition || "center"} onChange={(e) => updateStyle("backgroundPosition", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
+          <select value={block?.style?.backgroundPosition || "center"} onChange={(e) => updateStyle("backgroundPosition", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
             <option value="center">Center</option>
             <option value="top">Top</option>
             <option value="bottom">Bottom</option>
@@ -246,20 +526,20 @@ export const AdvancedStyleControls = ({ block, updateStyle }) => {
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Border Color</label>
           <div className="flex items-center gap-2 h-8">
-            <input type="color" value={block.style?.borderColor || "#000000"} onChange={(e) => updateStyle("borderColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+            <input type="color" value={block?.style?.borderColor || "#000000"} onChange={(e) => updateStyle("borderColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Radius ({block.style?.borderRadius || 0})</label>
-          <input type="range" min="0" max="50" value={block.style?.borderRadius || 0} onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Radius ({block?.style?.borderRadius || 0})</label>
+          <input type="range" min="0" max="50" value={block?.style?.borderRadius || 0} onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Border Width</label>
-          <input type="range" min="0" max="20" value={block.style?.borderWidth || 0} onChange={(e) => updateStyle("borderWidth", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+          <input type="range" min="0" max="20" value={block?.style?.borderWidth || 0} onChange={(e) => updateStyle("borderWidth", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
         </div>
         <div className="col-span-2 flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Box Shadow</label>
-          <input type="text" placeholder="e.g. 0 4px 6px rgba(0,0,0,0.1)" value={block.style?.boxShadow || ""} onChange={(e) => updateStyle("boxShadow", e.target.value)} className="text-xs border rounded p-1 w-full h-8" />
+          <input type="text" placeholder="e.g. 0 4px 6px rgba(0,0,0,0.1)" value={block?.style?.boxShadow || ""} onChange={(e) => updateStyle("boxShadow", e.target.value)} className="text-xs border rounded p-1 w-full h-8" />
         </div>
       </Section>
 
@@ -268,54 +548,870 @@ export const AdvancedStyleControls = ({ block, updateStyle }) => {
         <div className="col-span-2 flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Width / Max-Width</label>
           <div className="flex gap-2">
-            <input placeholder="Width (100%)" value={block.style?.width} onChange={(e) => updateStyle("width", e.target.value)} className="text-xs border rounded p-1 w-1/2 h-8" />
-            <input placeholder="Max Width" value={block.style?.maxWidth} onChange={(e) => updateStyle("maxWidth", e.target.value)} className="text-xs border rounded p-1 w-1/2 h-8" />
+            <input placeholder="Width (100%)" value={block?.style?.width} onChange={(e) => updateStyle("width", e.target.value)} className="text-xs border rounded p-1 w-1/2 h-8" />
+            <input placeholder="Max Width" value={block?.style?.maxWidth} onChange={(e) => updateStyle("maxWidth", e.target.value)} className="text-xs border rounded p-1 w-1/2 h-8" />
           </div>
         </div>
         <div className="col-span-2 flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Height</label>
-          <input placeholder="Height (auto)" value={block.style?.height} onChange={(e) => updateStyle("height", e.target.value)} className="text-xs border rounded p-1 w-full h-8" />
+          <input placeholder="Height (auto)" value={block?.style?.height} onChange={(e) => updateStyle("height", e.target.value)} className="text-xs border rounded p-1 w-full h-8" />
         </div>
       </Section>
+
+      {
+        block?.type === "footerBlock" && (
+          <>
+            <Section id="footerSettings" title="Footer Settings" icon={<FaCog />}>
+              <div className="col-span-2 flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Logo URL</label>
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    value={block.logoUrl || ""}
+                    onChange={(e) => updateStyle("logoUrl", e.target.value, true)}
+                    className="text-xs border rounded p-1 flex-1 h-8"
+                    placeholder="https://..."
+                  />
+                  <input
+                    id={`footer-logo-upload-${block.id}`}
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) updateStyle("logoUrl", URL.createObjectURL(file), true);
+                    }}
+                  />
+                  <label htmlFor={`footer-logo-upload-${block.id}`} className="bg-blue-50 text-blue-600 p-2 rounded cursor-pointer hover:bg-blue-100 transition h-8 flex items-center justify-center">
+                    <FaImage />
+                  </label>
+                  <select
+                    className="text-[10px] border rounded p-1 w-12 h-8"
+                    onChange={(e) => updateStyle("logoUrl", e.target.value, true)}
+                    value=""
+                  >
+                    <option value="" disabled>Var</option>
+                    {VARIABLE_OPTIONS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Logo Width ({block?.style?.logoWidth || 120}px)</label>
+                <input type="range" min="50" max="400" value={block?.style?.logoWidth || 120} onChange={(e) => updateStyle("logoWidth", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Shop Text</label>
+                <input type="text" value={block?.shopText || "Shop Online"} onChange={(e) => updateStyle("shopText", e.target.value, true)} className="text-xs border rounded p-1 w-full h-8" />
+              </div>
+              <div className="col-span-2 flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Shop URL</label>
+                <input type="text" value={block?.shopLink || ""} onChange={(e) => updateStyle("shopLink", e.target.value, true)} className="text-xs border rounded p-1 w-full h-8" placeholder="https://..." />
+              </div>
+            </Section>
+            <Section id="bottomBarStyles" title="Footer Bottom Style" icon={<FaBorderAll />}>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Background</label>
+                <input type="color" value={block.bottomBarStyle?.backgroundColor || "#041b5c"} onChange={(e) => updateStyle("backgroundColor", e.target.value, "bottomBarStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Text Size ({block.bottomBarStyle?.fontSize || 12}px)</label>
+                <input type="range" min="8" max="24" value={block.bottomBarStyle?.fontSize || 12} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "bottomBarStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+              </div>
+              <div className="col-span-2 flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Border Top</label>
+                <div className="flex gap-2 items-center text-xs">
+                  <input type="color" value={block.bottomBarStyle?.borderColor || "rgba(255,255,255,0.1)"} onChange={(e) => updateStyle("borderColor", e.target.value, "bottomBarStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+                  <input type="text" placeholder="1px solid rgba(255,255,255,0.1)" value={block.bottomBarStyle?.borderTop || "1px solid"} onChange={(e) => updateStyle("borderTop", e.target.value, "bottomBarStyle")} className="border rounded p-1 flex-1 h-8" />
+                </div>
+              </div>
+            </Section>
+          </>
+        )
+      }
+      {/* Link Section */}
+      <Section id="link" title="Link / Action" icon={<FaMousePointer />}>
+        <div className="col-span-2 flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Block Link (URL)</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="https://example.com"
+              value={block?.style?.link || ""}
+              onChange={(e) => updateStyle("link", e.target.value)}
+              className="text-xs border rounded p-1 flex-1 h-8"
+            />
+            <select
+              value={block?.style?.linkTarget || "_self"}
+              onChange={(e) => updateStyle("linkTarget", e.target.value)}
+              className="text-xs border rounded p-1 w-24 h-8"
+            >
+              <option value="_self">Same Tab</option>
+              <option value="_blank">New Tab</option>
+            </select>
+          </div>
+          <p className="text-[9px] text-gray-400 mt-1 italic italic">Apply a click action to the entire block.</p>
+        </div>
+      </Section>
+    </div >
+  );
+};
+
+const FooterBlockRenderer = ({ block, update, readOnly, isSelected, onSelect }) => {
+  const style = block.style || {};
+
+  const containerStyle = {
+    ...getCommonStyles(block),
+    backgroundColor: style.backgroundColor || "#062375",
+    color: "#fff",
+    padding: style.padding ? `${style.padding}px` : "0",
+    position: "relative",
+    overflow: "hidden",
+    fontFamily: style.fontFamily || "'Outfit', sans-serif"
+  };
+
+  const bottomBarStyle = {
+    background: block.bottomBarStyle?.backgroundColor || "#041b5c",
+    padding: "10px",
+    textAlign: "center",
+    fontSize: block.bottomBarStyle?.fontSize ? `${block.bottomBarStyle.fontSize}px` : "12px",
+    lineHeight: "1.6",
+    color: "rgba(255,255,255,0.7)",
+    borderTop: block.bottomBarStyle?.borderTop || `1px solid ${block.bottomBarStyle?.borderColor || "rgba(255,255,255,0.1)"}`,
+    position: 'relative',
+    zIndex: 20
+  };
+
+  return (
+    <div
+      style={containerStyle}
+      className={`relative group ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (onSelect) onSelect();
+      }}
+    >
+
+      <div
+        className="relative z-10 flex items-center justify-between gap-4 flex-nowrap"
+        style={{
+          paddingTop: style.paddingTop ? `${style.paddingTop}px` : "40px",
+          paddingBottom: style.paddingBottom ? `${style.paddingBottom}px` : "40px"
+        }}
+      >
+        {/* 1. Logo */}
+        <div className="flex-shrink-0">
+          <img
+            src={block.logoUrl || "/DashboardIcons/sss-logo.png"}
+            style={{ width: `${style.logoWidth || 120}px` }}
+            alt="Logo"
+          />
+        </div>
+
+        {/* 2. Text Info */}
+        <div className="flex-grow w-[200px]">
+          {readOnly ? (
+            <h2 style={{
+              fontSize: block.titleStyle?.fontSize ? `${block.titleStyle.fontSize}px` : "32px",
+              marginBottom: "4px",
+              fontWeight: block.titleStyle?.fontWeight || "700",
+              fontFamily: block.titleStyle?.fontFamily || "Georgia, serif",
+              color: block.titleStyle?.textColor || "#fff",
+              textAlign: block.titleStyle?.textAlign || "left"
+            }}>
+              {block.title || "Let’s be friends"}
+            </h2>
+          ) : (
+            <input
+              className="bg-transparent border-none outline-none text-2xl font-bold w-full mb-0 placeholder:text-white/50 text-white"
+              style={{
+                fontFamily: block.titleStyle?.fontFamily || "Georgia, serif",
+                fontSize: block.titleStyle?.fontSize ? `${block.titleStyle.fontSize}px` : "32px",
+                fontWeight: block.titleStyle?.fontWeight || "700",
+                color: block.titleStyle?.textColor || "#fff",
+                textAlign: block.titleStyle?.textAlign || "left"
+              }}
+              value={block.title}
+              onChange={(e) => update("title", e.target.value)}
+              placeholder="Footer Title"
+            />
+          )}
+
+          {readOnly ? (
+            <p style={{
+              opacity: block.subtitleStyle?.opacity || 0.9,
+              fontSize: block.subtitleStyle?.fontSize ? `${block?.subtitleStyle.fontSize}px` : "14px",
+              fontWeight: block.subtitleStyle?.fontWeight || "500",
+              lineBreak: "anywhere",
+              color: block.subtitleStyle?.textColor || "#fff",
+              fontFamily: block.subtitleStyle?.fontFamily || "inherit",
+              textAlign: block.subtitleStyle?.textAlign || "left"
+            }}>
+              {block?.subtitle || "If we are not playing football you can find us socialising on..."}
+            </p>
+          ) : (
+            <textarea
+              className="bg-transparent border-none outline-none text-sm w-full opacity-80 resize-none placeholder:text-white/50 text-white"
+              style={{
+                fontSize: block.subtitleStyle?.fontSize ? `${block?.subtitleStyle.fontSize}px` : "14px",
+                color: block.subtitleStyle?.textColor || "#fff",
+                fontFamily: block.subtitleStyle?.fontFamily || "inherit",
+                textAlign: block.subtitleStyle?.textAlign || "left",
+                fontWeight: block.subtitleStyle?.fontWeight || "500",
+              }}
+              value={block?.subtitle}
+              onChange={(e) => update("subtitle", e.target.value)}
+              placeholder="Footer Subtitle"
+            />
+          )}
+        </div>
+
+        {/* 3. Social Icons */}
+        <div className="flex items-center gap-3">
+          {(block.links || [
+            { platform: 'facebook', url: '#' },
+            { platform: 'instagram', url: '#' },
+            { platform: 'youtube', url: '#' },
+            { platform: 'twitter', url: '#' }
+          ]).map((social, i) => {
+            const platform = social.platform || 'facebook';
+            const Icon = platform === 'facebook' ? FaFacebookF :
+              platform === 'instagram' ? FaInstagram :
+                platform === 'youtube' ? FaYoutube :
+                  platform === 'linkedin' ? FaLinkedinIn :
+                    platform === 'twitter' ? FaTwitter : FaShareAlt;
+
+            return (
+              <div key={i} className="relative group/social">
+                <a
+                  href={social.url || "#"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-white text-[#062375] w-7 h-7 rounded-full flex items-center justify-center hover:scale-110 transition-transform shadow-lg"
+                  style={{ fontSize: "18px" }}
+                >
+                  {Icon && <Icon size={12} />}
+                </a>
+                {!readOnly && (
+                  <div className="absolute -top-24 left-1/2 -translate-x-1/2 hidden group-hover/social:flex flex-col gap-1 bg-white p-2 border rounded shadow-2xl z-50 w-32 scale-75 origin-bottom">
+                    <select
+                      className="text-[10px] border p-1 rounded text-gray-700"
+                      value={social.platform}
+                      onChange={(e) => {
+                        const newLinks = [...(block.links || [])];
+                        newLinks[i] = { ...newLinks[i], platform: e.target.value };
+                        update("links", newLinks);
+                      }}
+                    >
+                      <option value="facebook">Facebook</option>
+                      <option value="instagram">Instagram</option>
+                      <option value="youtube">YouTube</option>
+                      <option value="linkedin">LinkedIn</option>
+                      <option value="twitter">Twitter</option>
+                    </select>
+                    <input
+                      className="text-[10px] border p-1 rounded text-gray-700 font-normal outline-none"
+                      placeholder="URL"
+                      value={social.url}
+                      onChange={(e) => {
+                        const newLinks = [...(block.links || [])];
+                        newLinks[i] = { ...newLinks[i], url: e.target.value };
+                        update("links", newLinks);
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        const newLinks = (block.links || []).filter((_, idx) => idx !== i);
+                        update("links", newLinks);
+                      }}
+                      className="text-[10px] bg-red-500 text-white p-1 rounded mt-1"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {!readOnly && (
+            <button
+              onClick={() => {
+                const newLinks = [...(block.links || []), { platform: 'facebook', url: '#' }];
+                update("links", newLinks);
+              }}
+              className="w-8 h-8 rounded-full border border-dashed border-white/40 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+            >
+              <FaPlus size={12} />
+            </button>
+          )}
+        </div>
+
+        {/* 4. Shop Button */}
+        <div className="flex-shrink-0">
+          <a
+            href={block?.shopLink || "#"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white text-[#062375] px-5 py-3 rounded-full font-bold text-sm flex items-center gap-2 shadow-xl hover:bg-gray-100 transition whitespace-nowrap"
+          >
+            <FaShoppingCart size={16} /> {block?.shopText || "Shop Online"}
+          </a>
+        </div>
+      </div>
+
+      {/* Bottom Bar */}
+      <div style={bottomBarStyle}>
+        {readOnly ? (
+          block.copyright || "© Samba Soccer Schools Global Ltd, 2022. All rights reserved. Samba Soccer® is a registered trademark of Samba Soccer Schools Global Ltd. Registration Number: 8623348 | Head Office: 65-69 Shelton Street, Covent Garden, London WC2H 9HE"
+        ) : (
+          <textarea
+            className="bg-transparent outline-none text-[10px] w-full text-center placeholder:text-white/50 min-h-[40px] resize-none"
+            value={block.copyright}
+            onChange={(e) => update("copyright", e.target.value)}
+            placeholder="Copyright & Company Info"
+          />
+        )}
+      </div>
     </div>
   );
 };
 
+
+const InfoBoxRenderer = ({ block, update, readOnly }) => {
+  const [showSettings, setShowSettings] = useState(false);
+  const style = block.style || {};
+
+  const updateStyle = (key, value) => {
+    update("style", { ...style, [key]: value });
+  };
+
+  const containerStyle = {
+    backgroundColor: style.backgroundColor || "#f3f4f6",
+
+    borderRadius: style.borderRadius
+      ? `${style.borderRadius}px`
+      : "16px",
+
+    border: style.borderWidth
+      ? `${style.borderWidth}px solid ${style.borderColor || "#e5e7eb"}`
+      : "1px solid #e5e7eb",
+
+    borderTop: style.topBorderColor
+      ? `4px solid ${style.topBorderColor}`
+      : undefined,
+
+    padding: style.padding ? `${style.padding}px` : "20px",
+
+    display: style.display || "flex",
+    flexDirection: style.flexDirection || "row",
+
+    gap:
+      style.gap !== undefined
+        ? `${style.gap}px`
+        : "16px",
+
+    flexWrap: style.flexWrap || "wrap",
+
+    boxShadow: style.boxShadow || "none",
+
+    maxWidth: style.maxWidth || "100%",
+
+    width:
+      typeof style.width === "number"
+        ? `${style.width}%`
+        : style.width || "100%",
+  };
+
+  return (
+    <div style={containerStyle} className="relative group/infobox">
+
+
+      {/* InfoBox Toolbar */}
+      {!readOnly && (
+        <div className="absolute -top-3 right-0 flex gap-2 opacity-0 group-hover/infobox:opacity-100 transition z-50">
+          {/* Settings Trigger */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowSettings(!showSettings);
+            }}
+            className="bg-gray-800 text-white p-1.5 rounded-full shadow hover:bg-black w-6 h-6 flex items-center justify-center transform hover:scale-110 active:scale-90 transition-transform"
+            title="InfoBox Settings"
+          >
+            {showSettings ? <FaTimes size={10} /> : <FaCog size={10} />}
+          </button>
+        </div>
+      )}
+
+      {/* Settings Panel */}
+      {showSettings && !readOnly && (
+        <div
+          className="absolute right-0 top-6 bg-white border border-gray-200 shadow-xl rounded-lg p-3 w-64 z-50 animate-in fade-in zoom-in duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-xs font-bold uppercase text-gray-400 mb-2 pb-1 border-b">InfoBox Settings</div>
+
+          <div className="space-y-3">
+            {/* Layout */}
+            <div>
+              <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Layout</label>
+              <div className="flex bg-gray-100 p-1 rounded mb-2">
+                <button
+                  onClick={() => updateStyle("flexDirection", "row")}
+                  className={`flex-1 text-[10px] py-1 rounded ${style.flexDirection === "row" ? "bg-white shadow text-blue-600 font-bold" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  Columns (Row)
+                </button>
+                <button
+                  onClick={() => updateStyle("flexDirection", "column")}
+                  className={`flex-1 text-[10px] py-1 rounded ${style.flexDirection === "column" || !style.flexDirection ? "bg-white shadow text-blue-600 font-bold" : "text-gray-500 hover:text-gray-700"}`}
+                >
+                  List (Column)
+                </button>
+              </div>
+
+              {/* Columns Count (Only for Row) */}
+              {style.flexDirection === "row" && (
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">Cols:</label>
+                  <select
+                    value={style.columns || "auto"}
+                    onChange={(e) => updateStyle("columns", e.target.value === "auto" ? "auto" : parseInt(e.target.value))}
+                    className="text-xs border rounded p-1 bg-white flex-1"
+                  >
+                    <option value="auto">Auto (Fit)</option>
+                    <option value="1">1 Column</option>
+                    <option value="2">2 Columns</option>
+                    <option value="3">3 Columns</option>
+                    <option value="4">4 Columns</option>
+                    <option value="5">5 Columns</option>
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Colors */}
+            <div className="flex gap-2">
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Background</label>
+                <div className="flex items-center gap-2 border rounded p-1 bg-white h-7">
+                  <input
+                    type="color"
+                    value={style.backgroundColor || "#f3f4f6"}
+                    onChange={(e) => updateStyle("backgroundColor", e.target.value)}
+                    className="w-4 h-4 rounded-full border-none p-0 cursor-pointer"
+                  />
+                </div>
+              </div>
+              <div className="flex-1">
+                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Top Accent</label>
+                <div className="flex items-center gap-2 border rounded p-1 bg-white h-7">
+                  <input
+                    type="color"
+                    value={style.topBorderColor || "#000000"}
+                    onChange={(e) => updateStyle("topBorderColor", e.target.value)}
+                    className="w-4 h-4 rounded-full border-none p-0 cursor-pointer"
+                  />
+                  <button
+                    onClick={() => updateStyle("topBorderColor", "")}
+                    className="text-[10px] text-red-500 hover:bg-red-50 px-1 rounded ml-auto"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Spacing */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Gap (px)</label>
+                <input
+                  type="number"
+                  value={style.gap !== undefined ? style.gap : 16}
+                  onChange={(e) => updateStyle("gap", parseInt(e.target.value))}
+                  className="w-full text-xs border rounded p-1"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Padding (px)</label>
+                <input
+                  type="number"
+                  value={style.padding !== undefined ? style.padding : 20}
+                  onChange={(e) => updateStyle("padding", parseInt(e.target.value))}
+                  className="w-full text-xs border rounded p-1"
+                />
+              </div>
+            </div>
+
+            {/* Labels Font Size */}
+            <div>
+              <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Label Size ({style.labelFontSize || 14}px)</label>
+              <input
+                type="range" min="10" max="32"
+                value={style.labelFontSize || 14}
+                onChange={(e) => updateStyle("labelFontSize", parseInt(e.target.value))}
+                className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+              />
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="pt-2 border-t border-gray-100 mt-2">
+            <button
+              onClick={() => {
+                update("duplicateBlock", block); // Parent handles this specific key to duplicate
+                setShowSettings(false);
+              }}
+              className="w-full flex items-center justify-center gap-2 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 p-2 rounded transition uppercase"
+            >
+              <FaCopy /> Duplicate InfoBox
+            </button>
+          </div>
+        </div>
+      )}
+      {(block.items || []).map((item, i) => {
+        const columns = style.columns || "auto";
+        const gap = style.gap !== undefined ? style.gap : 16;
+        // Calculate flex basis for fixed columns
+        // Formula: (100% - (gap * (n-1))) / n
+        const flexBasis = columns !== "auto"
+          ? `calc(100% / ${columns} - ${(gap * (columns - 1)) / columns}px)`
+          : undefined;
+
+        return (
+          <div
+            key={i}
+            className={!readOnly ? "group relative" : ""}
+            style={{
+              display: "flex", // Ensure it's a flex container for inner content if needed
+              flexDirection: "column",
+              flex: style.flexDirection === "row"
+                ? (columns === "auto" ? "1 1 0px" : `0 0 ${flexBasis}`)
+                : "1 1 auto",
+              minWidth: style.flexDirection === "row"
+                ? (columns === "auto" ? "100px" : "auto")
+                : "100%",
+              maxWidth: style.flexDirection === "row" && columns !== "auto" ? flexBasis : "100%",
+              // Keep styling consistent for readonly
+              ...(!readOnly ? {} : {
+                // When readonly, we still want to respect the column layout if set
+                flex: style.flexDirection === "row"
+                  ? (columns === "auto" ? "1 1 100px" : `0 0 ${flexBasis}`)
+                  : "1 1 auto",
+                minWidth: style.flexDirection === "row"
+                  ? (columns === "auto" ? "80px" : "auto")
+                  : "100%",
+                maxWidth: style.flexDirection === "row" && columns !== "auto" ? flexBasis : "100%",
+              })
+            }}
+          >
+            {/* Duplicate Item */}
+            {!readOnly && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const newItems = [...(block.items || [])];
+                  newItems.splice(i + 1, 0, { ...item });
+                  update("items", newItems);
+                }}
+                className="absolute -top-2 right-5 text-blue-500 text-xs opacity-0 group-hover:opacity-100 z-10 hover:scale-110"
+                title="Duplicate Item"
+              >
+                <FaCopy />
+              </button>
+            )}
+
+            {/* Remove Item */}
+            {!readOnly && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const newItems = block.items.filter(
+                    (_, idx) => idx !== i
+                  );
+                  update("items", newItems);
+                }}
+                className="absolute -top-2 right-0 text-red-500 text-xs opacity-0 group-hover:opacity-100 z-10"
+              >
+                ✕
+              </button>
+            )}
+
+            {readOnly ? (
+              item.link ? (
+                <a
+                  href={item.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+                >
+                  {/* Label */}
+                  <div
+                    style={{
+                      fontWeight: style.labelFontWeight || 600,
+                      fontSize: style.labelFontSize
+                        ? `${style.labelFontSize}px`
+                        : "14px",
+                      color: style.labelColor || "#374151",
+                      marginBottom: "6px",
+                      whiteSpace: "pre-wrap",
+                      overflowWrap: "break-word",
+                    }}
+                  >
+                    {item.label}
+                  </div>
+
+                  {/* Value */}
+                  <div
+                    style={{
+                      fontSize: style.valueFontSize
+                        ? `${style.valueFontSize}px`
+                        : "14px",
+                      color: style.valueColor || "#111827",
+                      lineHeight: "1.5",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      overflowWrap: "break-word",
+                      width: "100%",
+                    }}
+                    dangerouslySetInnerHTML={{
+                      __html: item.value || "",
+                    }}
+                  />
+                </a>
+              ) : (
+                <>
+                  {/* Label */}
+                  <div
+                    style={{
+                      fontWeight: style.labelFontWeight || 600,
+                      fontSize: style.labelFontSize
+                        ? `${style.labelFontSize}px`
+                        : "14px",
+                      color: style.labelColor || "#374151",
+                      marginBottom: "6px",
+                      whiteSpace: "pre-wrap",
+                      overflowWrap: "break-word",
+                    }}
+                  >
+                    {item.label}
+                  </div>
+
+                  {/* Value */}
+                  <div
+                    style={{
+                      fontSize: style.valueFontSize
+                        ? `${style.valueFontSize}px`
+                        : "14px",
+                      color: style.valueColor || "#111827",
+                      lineHeight: "1.5",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      overflowWrap: "break-word",
+                      width: "100%",
+                    }}
+                    dangerouslySetInnerHTML={{
+                      __html: item.value || "",
+                    }}
+                  />
+                </>
+              )
+            ) : (
+              <div className="flex flex-col gap-2 mt-1">
+                <VariableTextarea
+                  value={item.label || ""}
+                  onChange={(e) => {
+                    const newItems = [...block.items];
+                    newItems[i] = { ...newItems[i], label: e.target.value };
+                    update("items", newItems);
+                  }}
+                  className="w-full text-xs font-bold bg-transparent outline-none resize-none overflow-hidden placeholder-gray-400 border-b border-gray-200 pb-1"
+                  placeholder="Label"
+                />
+
+                <VariableTextarea
+                  value={item.value || ""}
+                  onChange={(e) => {
+                    const newItems = [...block.items];
+                    newItems[i] = { ...newItems[i], value: e.target.value };
+                    update("items", newItems);
+                  }}
+                  className="w-full text-xs bg-transparent outline-none resize-none overflow-hidden placeholder-gray-400"
+                  placeholder="Value"
+                />
+
+                <input
+                  value={item.link || ""}
+                  onChange={(e) => {
+                    const newItems = [...block.items];
+                    newItems[i] = { ...newItems[i], link: e.target.value };
+                    update("items", newItems);
+                  }}
+                  className="w-full text-[10px] bg-transparent outline-none placeholder-gray-300 text-blue-400 italic"
+                  placeholder="Item Link (Optional)"
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Add Item Button */}
+      {!readOnly && (
+        <button
+          onClick={() =>
+            update("items", [
+              ...(block.items || []),
+              { label: "Label", value: "Value" },
+            ])
+          }
+          className="text-xl font-bold text-gray-400 hover:text-blue-500"
+        >
+          +
+        </button>
+      )}
+    </div>
+  );
+};
+
+
+
 export default function BlockRenderer({ block, blocks, setBlocks, readOnly = false, isSelected = false, onSelect }) {
   const update = (key, value) => {
-    const updated = blocks.map((b) =>
-      b.id === block.id ? { ...b, [key]: value } : b
+    if (key === "duplicateBlock") {
+      setBlocks((prev) => {
+        const index = prev.findIndex((b) => b.id === block.id);
+        if (index === -1) return prev;
+
+        // ✅ Deep clone to break all shared references
+        const cloned = JSON.parse(JSON.stringify(prev[index]));
+
+        // ✅ Recursively regenerate IDs for the block and all its children
+        const regenerateIds = (blk) => {
+          blk.id = crypto.randomUUID();
+          if (blk.type === "sectionGrid" && Array.isArray(blk.columns)) {
+            blk.columns = blk.columns.map(col => col.map(child => {
+              const clonedChild = { ...child };
+              regenerateIds(clonedChild);
+              return clonedChild;
+            }));
+          }
+          if (blk.type === "cardRow" && Array.isArray(blk.cards)) {
+            blk.cards = blk.cards.map(card => ({ ...card, id: crypto.randomUUID() }));
+          }
+          if (blk.type === "noteSection" && Array.isArray(blk.rows)) {
+            blk.rows = blk.rows.map(row => ({
+              ...row,
+              id: crypto.randomUUID(),
+              boxes: row.boxes?.map(box => ({ ...box, id: crypto.randomUUID() }))
+            }));
+          }
+        };
+
+        regenerateIds(cloned);
+
+        return [
+          ...prev.slice(0, index + 1),
+          cloned,
+          ...prev.slice(index + 1),
+        ];
+      });
+      return;
+    }
+
+    setBlocks((prev) =>
+      prev.map((b) => (b.id === block.id ? { ...b, [key]: value } : b))
     );
-    setBlocks(updated);
   };
+
 
   const addChild = (columnIndex, type) => {
     const newChild = {
       id: crypto.randomUUID(),
       type,
-      content: type === "btn" ? "Click More" : "Enter Text",
+      content: type === "btn" ? "Click More" : (type === "noteSection" ? "" : "Enter Text"),
+      items: type === "infoBox" ? [{ label: "Label", value: "Value" }] : [],
+      rows: type === "noteSection" ? [{
+        id: crypto.randomUUID(),
+        boxes: [
+          {
+            id: crypto.randomUUID(),
+            type: "infoBox",
+            items: [{ label: "Label", value: "Value" }],
+            style: {
+              topBorderColor: "#10b981",
+              flexDirection: "row",
+              columns: "auto",
+              backgroundColor: "#ffffff",
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)"
+            }
+          }
+        ]
+      }] : undefined,
+      heading: type === "noteSection" ? "Make a Note!" : undefined,
+      headingStyle: type === "noteSection" ? { fontFamily: "'Handlee', cursive", fontSize: 32, textColor: "#0ea5e9" } : undefined,
       url: "",
       style: {
         fontSize: type === "heading" ? 24 : 16,
         fontWeight: type === "heading" ? "bold" : "normal",
         textColor: "#000000",
-        textAlign: "center"
+        textAlign: "center",
+        display: (type === "infoBox" || type === "noteSection") ? "flex" : "block",
+        flexDirection: type === "infoBox" ? "row" : undefined,
+        gap: type === "infoBox" ? 16 : undefined,
+        flexWrap: type === "infoBox" ? "wrap" : undefined,
       }
     };
     const newColumns = [...(block.columns || [])];
     newColumns[columnIndex] = [...(newColumns[columnIndex] || []), newChild];
     update("columns", newColumns);
   };
-
   const updateChild = (columnIndex, childId, key, value) => {
-    const newColumns = (block.columns || []).map((col, i) => {
-      if (i === columnIndex) {
-        return col.map((c) => (c.id === childId ? { ...c, [key]: value } : c));
-      }
-      return col;
+
+    if (key === "duplicateBlock") {
+
+      const newColumns = block.columns.map((col, i) => {
+        if (i !== columnIndex) return col;
+
+        const index = col.findIndex(c => c.id === childId);
+        if (index === -1) return col;
+
+        const duplicatedBlock = {
+          ...col[index],
+          id: crypto.randomUUID(),
+          items: col[index].items
+            ? col[index].items.map(item => ({ ...item }))
+            : undefined,
+          style: col[index].style
+            ? { ...col[index].style }
+            : undefined,
+        };
+
+        return [
+          ...col.slice(0, index + 1),
+          duplicatedBlock,
+          ...col.slice(index + 1),
+        ];
+      });
+
+      update("columns", newColumns);
+      return;
+    }
+
+    // Normal update
+    const newColumns = block.columns.map((col, i) => {
+      if (i !== columnIndex) return col;
+
+      return col.map(c =>
+        c.id === childId ? { ...c, [key]: value } : c
+      );
     });
+
     update("columns", newColumns);
   };
+
+
 
   const removeChild = (columnIndex, childId) => {
     const newColumns = (block.columns || []).map((col, i) => {
@@ -327,13 +1423,44 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     update("columns", newColumns);
   };
 
+  const duplicateColumn = (columnIndex) => {
+    const colToDup = block.columns[columnIndex];
+    if (!colToDup) return;
+
+    const clonedColumn = colToDup.map(child => ({
+      ...child,
+      id: crypto.randomUUID(),
+      items: child.items ? child.items.map(it => ({ ...it })) : undefined,
+      style: child.style ? { ...child.style } : undefined,
+    }));
+
+    const newColumns = [
+      ...block.columns.slice(0, columnIndex + 1),
+      clonedColumn,
+      ...block.columns.slice(columnIndex + 1)
+    ];
+    update("columns", newColumns);
+  };
+
+  const removeColumn = (columnIndex) => {
+    const newColumns = block.columns.filter((_, i) => i !== columnIndex);
+    update("columns", newColumns);
+  };
+
+
+  const addColumn = () => {
+    const newColumns = [...(block.columns || []), []];
+    update("columns", newColumns);
+  };
+
   const updateStyle = (key, value) => {
-    const updated = blocks.map((b) =>
-      b.id === block.id
-        ? { ...b, style: { ...b.style, [key]: value } }
-        : b
+    setBlocks((prev) =>
+      prev.map((b) =>
+        b.id === block.id
+          ? { ...b, style: { ...(b.style || {}), [key]: value } }
+          : b
+      )
     );
-    setBlocks(updated);
   };
 
   const addCardToRow = () => {
@@ -356,6 +1483,22 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
 
   const removeCardFromRow = (cardId) => {
     const newCards = (block.cards || []).filter((c) => c.id !== cardId);
+    update("cards", newCards);
+  };
+
+  const duplicateCard = (cardId) => {
+    const cardIndex = (block.cards || []).findIndex(c => c.id === cardId);
+    if (cardIndex === -1) return;
+    const duplicatedCard = {
+      ...block.cards[cardIndex],
+      id: crypto.randomUUID(),
+      style: block.cards[cardIndex].style ? { ...block.cards[cardIndex].style } : undefined
+    };
+    const newCards = [
+      ...block.cards.slice(0, cardIndex + 1),
+      duplicatedCard,
+      ...block.cards.slice(cardIndex + 1)
+    ];
     update("cards", newCards);
   };
 
@@ -387,48 +1530,79 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     update("children", newChildren);
   };
 
+  const duplicateSectionChild = (childId) => {
+    const childIndex = (block.children || []).findIndex(c => c.id === childId);
+    if (childIndex === -1) return;
+    const duplicatedChild = {
+      ...block.children[childIndex],
+      id: crypto.randomUUID(),
+      style: block.children[childIndex].style ? { ...block.children[childIndex].style } : undefined
+    };
+    const newChildren = [
+      ...block.children.slice(0, childIndex + 1),
+      duplicatedChild,
+      ...block.children.slice(childIndex + 1)
+    ];
+    update("children", newChildren);
+  };
 
   const renderContent = () => {
-    const getCommonStyles = (b) => ({
-      width: b.style?.width || "100%",
-      maxWidth: b.style?.maxWidth || "100%",
-      height: b.style?.height || "auto",
-      minHeight: b.style?.minHeight,
-      marginTop: b.style?.marginTop,
-      marginBottom: b.style?.marginBottom,
-      padding: b.style?.padding,
-      backgroundColor: b.style?.backgroundColor,
-      backgroundImage: b.style?.backgroundImage || "none",
-      backgroundSize: b.style?.backgroundSize || "cover",
-      backgroundPosition: b.style?.backgroundPosition || "center",
-      borderRadius: b.style?.borderRadius,
-      border: `${b.style?.borderWidth || 0}px ${b.style?.borderStyle || "solid"} ${b.style?.borderColor || "transparent"}`,
-      display: b.style?.display || "block",
-      flexDirection: b.style?.flexDirection,
-      gap: b.style?.gap ? `${b.style.gap}px` : undefined,
-      alignItems: b.style?.alignItems,
-      justifyContent: b.style?.justifyContent,
-      boxShadow: b.style?.boxShadow,
-      textAlign: b.style?.textAlign,
-      opacity: b.style?.opacity,
-      zIndex: b.style?.zIndex,
-      objectFit: b.style?.objectFit || "fill",
+    if (block?.type === "customHTML") {
+      const handleImageClick = (e) => {
+        if (e.target.tagName === "IMG") {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = "image/*";
 
-      // Typography
-      fontFamily: b.style?.fontFamily,
-      fontSize: b.style?.fontSize,
-      fontWeight: b.style?.fontWeight,
-      color: b.style?.textColor,
-      lineHeight: b.style?.lineHeight,
-      letterSpacing: b.style?.letterSpacing,
-      textDecoration: b.style?.textDecoration,
-      textTransform: b.style?.textTransform,
-    });
+          input.onchange = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const newUrl = URL.createObjectURL(file);
+
+            // Replace clicked image src
+            e.target.src = newUrl;
+
+            // Save updated HTML
+            update(
+              "content",
+              e.currentTarget.innerHTML
+            );
+          };
+
+          input.click();
+        }
+      };
+
+      return (
+        <div
+          onClick={onSelect}
+          className={`p-2 ${isSelected ? "ring-2 ring-blue-500" : ""
+            }`}
+        >
+          <div
+            contentEditable={!readOnly}
+            suppressContentEditableWarning
+            dangerouslySetInnerHTML={{ __html: block.content }}
+            onBlur={(e) =>
+              update("content", e.currentTarget.innerHTML)
+            }
+            onClick={handleImageClick}
+            className="outline-none"
+          />
+        </div>
+      );
+    }
+
+
+
+
+
 
     // CUSTOM SECTION
-    if (block.type === "customSection") {
+    if (block?.type === "customSection") {
       return (
-        <div style={getCommonStyles(block)} className={`relative min-h-[300px] flex flex-col justify-center overflow-hidden ${!readOnly ? "hover:shadow-lg transition-shadow duration-300" : ""}`}>
+        <div style={getCommonStyles(block)} className={!readOnly ? "relative min-h-[300px] flex flex-col justify-center overflow-hidden hover:shadow-lg transition-shadow duration-300" : ""}>
           {/* BG Upload Overlay */}
           {!readOnly && (
             <div className="absolute top-2 right-2 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition">
@@ -449,16 +1623,31 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
           )}
 
           {/* Children Management */}
-          <div className="flex flex-col gap-6 relative z-10">
+          <div style={readOnly ? { display: 'flex', flexDirection: 'column', gap: '24px', position: 'relative', zIndex: 10 } : {}} className={!readOnly ? "flex flex-col gap-6 relative z-10" : ""}>
             {(block.children || []).map((child) => (
-              <div key={child.id} className={`relative group/child p-2 border border-transparent ${!readOnly ? "hover:border-blue-200 hover:bg-white/40" : ""} rounded-lg transition`}>
+              <div key={child.id} style={readOnly ? { padding: '8px', border: '1px solid transparent' } : {}} className={!readOnly ? "relative group/child p-2 border border-transparent hover:border-blue-200 hover:bg-white/40 rounded-lg transition" : ""}>
                 {!readOnly && (
-                  <button
-                    className="absolute -top-3 -right-3 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover/child:opacity-100 transition z-20"
-                    onClick={() => removeSectionChild(child.id)}
-                  >
-                    ×
-                  </button>
+                  <div className="absolute -top-3 -right-3 flex gap-1 z-20 opacity-0 group-hover/child:opacity-100 transition">
+                    <button
+                      className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-blue-600 shadow-lg"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        duplicateSectionChild(child.id);
+                      }}
+                      title="Duplicate"
+                    >
+                      <FaCopy size={8} />
+                    </button>
+                    <button
+                      className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-600 shadow-lg"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeSectionChild(child.id);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
                 )}
                 {child.type === "heading" && (
                   readOnly ? (
@@ -518,7 +1707,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                 {child.type === "logo" && (
                   <div style={{ textAlign: child.style?.textAlign }}>
                     {child.url ? (
-                      <img src={child.url} className="mx-auto max-h-16 object-contain" />
+                      <img src={child.url} style={readOnly ? { margin: '0 auto', maxHeight: '64px', objectFit: 'contain', display: 'block' } : {}} className={!readOnly ? "mx-auto max-h-16 object-contain" : ""} />
                     ) : (
                       !readOnly && <div className="text-[10px] text-gray-400 border border-dashed border-gray-300 rounded p-2">Logo Placeholder</div>
                     )}
@@ -540,15 +1729,56 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                 )}
                 {child.type === "button" && (
                   <div style={{ textAlign: child.style?.textAlign }}>
-                    <button className="px-6 py-2 rounded-lg font-bold transition transform hover:scale-105" style={{ backgroundColor: child.style?.backgroundColor, color: "#fff" }}>
-                      {child.content}
-                    </button>
-                    {!readOnly && (
-                      <input
-                        className="block mt-2 mx-auto text-[10px] border rounded p-1 outline-none w-full max-w-[120px] text-center"
-                        value={child.content}
-                        onChange={(e) => updateSectionChild(child.id, "content", e.target.value)}
-                      />
+                    {readOnly ? (
+                      <a
+                        href={child.link || "#"}
+                        target={child.linkTarget || "_self"}
+                        style={{
+                          backgroundColor: child.style?.backgroundColor || "#133C8B",
+                          color: "#fff",
+                          padding: '10px 28px',
+                          borderRadius: '30px',
+                          border: 'none',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          display: 'inline-block',
+                          textDecoration: 'none',
+                          fontSize: child.style?.fontSize ? `${child.style.fontSize}px` : '14px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                        }}
+                        className="transition transform hover:scale-105 hover:shadow-lg"
+                      >
+                        {child.content}
+                      </a>
+                    ) : (
+                      <>
+                        <button style={{
+                          backgroundColor: child.style?.backgroundColor || "#133C8B",
+                          color: "#fff",
+                          padding: '8px 24px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          display: 'inline-block'
+                        }} className="px-6 py-2 rounded-lg font-bold transition transform hover:scale-105">
+                          {child.content}
+                        </button>
+                        <div className="mt-2 flex flex-col gap-1 max-w-[200px] mx-auto">
+                          <input
+                            className="text-[10px] border rounded p-1 outline-none w-full text-center"
+                            value={child.content}
+                            onChange={(e) => updateSectionChild(child.id, "content", e.target.value)}
+                            placeholder="Button Text"
+                          />
+                          <input
+                            className="text-[10px] border rounded p-1 outline-none w-full text-center text-blue-500"
+                            value={child.link || ""}
+                            onChange={(e) => updateSectionChild(child.id, "link", e.target.value)}
+                            placeholder="Button Link (URL)"
+                          />
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
@@ -575,76 +1805,10 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
       );
     }
 
-    // CARD
-    if (block.type === "card") {
-      return (
-        <div style={getCommonStyles(block)}>
-          <div className="space-y-4">
-            {/* Image Part */}
-            {block.url ? (
-              <img src={block.url} className="w-full rounded-lg object-cover h-40" />
-            ) : (
-              <div className="w-full h-40 bg-gray-100 rounded-lg flex items-center justify-center text-gray-300 text-xs">
-                Card Image Preview
-              </div>
-            )}
 
-            {!readOnly && (
-              <>
-                <input
-                  id={`card-upload-${block.id}`}
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) update("url", URL.createObjectURL(file));
-                  }}
-                />
-                <label
-                  htmlFor={`card-upload-${block.id}`}
-                  className="block text-center text-blue-500 text-xs cursor-pointer hover:underline opacity-0 group-hover:opacity-100 transition"
-                >
-                  Upload Photo
-                </label>
-              </>
-            )}
-
-            {/* Text Part */}
-            {readOnly ? (
-              <>
-                <h3 style={{ color: block.style?.textColor, textAlign: block.style?.textAlign, fontSize: '1.25rem', fontWeight: 'bold', overflowWrap: "break-word", wordBreak: "break-word" }}>
-                  {block.title}
-                </h3>
-                <p style={{ textAlign: block.style?.textAlign, fontSize: '0.875rem', color: '#4B5563', whiteSpace: 'pre-wrap', overflowWrap: "break-word", wordBreak: "break-word" }}>
-                  {block.description}
-                </p>
-              </>
-            ) : (
-              <>
-                <VariableTextarea
-                  className="w-full bg-transparent focus:outline-none border-b border-gray-100 font-bold text-lg resize-none overflow-hidden whitespace-pre-wrap break-words placeholder-gray-400"
-                  placeholder="Card Title"
-                  value={block.title}
-                  onChange={(e) => update("title", e.target.value)}
-                  style={{ color: block.style?.textColor, textAlign: block.style?.textAlign }}
-                />
-                <VariableTextarea
-                  className="w-full bg-transparent focus:outline-none text-sm text-gray-600 resize-none min-h-[60px] whitespace-pre-wrap break-words overflow-hidden placeholder-gray-400"
-                  placeholder="Card description..."
-                  value={block.description}
-                  onChange={(e) => update("description", e.target.value)}
-                  style={{ textAlign: block.style?.textAlign }}
-                />
-              </>
-            )}
-          </div>
-        </div>
-      );
-    }
 
     // HEADING
-    if (block.type === "heading") {
+    if (block?.type === "heading") {
       return (
         <div style={getCommonStyles(block)}>
           {readOnly ? (
@@ -662,57 +1826,27 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
               {block.content}
             </h2>
           ) : (
-            <VariableTextarea
-              value={block.content}
-              placeholder={block.placeholder}
-              onChange={(e) => update("content", e.target.value)}
-              className="w-full bg-transparent focus:outline-none border-b border-dashed border-gray-300 pb-1 resize-none overflow-hidden block placeholder-gray-300"
-              style={{
-                color: block.style?.textColor,
-                fontSize: block.style?.fontSize,
-                textAlign: block.style?.textAlign,
-                fontWeight: block.style?.fontWeight,
-                fontFamily: block.style?.fontFamily,
-                whiteSpace: "pre-wrap",
-                overflowWrap: "break-word"
-              }}
-            />
-          )}
-        </div>
-      );
-    }
-
-    // TEXT / PARAGRAPH
-    if (block.type === "text") {
-      return (
-        <div style={getCommonStyles(block)}>
-          {readOnly ? (
-            <div
-              className="rich-text-content"
-              style={{
-                color: block.style?.textColor,
-                fontSize: `${block.style?.fontSize}px`,
-                textAlign: block.style?.textAlign,
-                fontFamily: block.style?.fontFamily,
-                overflowWrap: "break-word",
-                wordBreak: "break-word",
-              }}
-              dangerouslySetInnerHTML={{ __html: block.content }}
-            />
-          ) : (
-            <div className="p-2 border border-dashed border-gray-200 rounded-lg min-h-[100px] bg-white text-editor-container hover:border-blue-400 transition">
-              <ReactQuill
-                theme="snow"
+            <div className="flex flex-col gap-1 w-full">
+              <VariableTextarea
                 value={block.content}
-                onChange={(val) => update("content", val)}
-                placeholder="Enter text..."
+                placeholder={block.placeholder}
+                onChange={(e) => update("content", e.target.value)}
+                className="w-full bg-transparent focus:outline-none border-b border-dashed border-gray-300 pb-1 resize-none overflow-hidden block placeholder-gray-300"
                 style={{
                   color: block.style?.textColor,
-                  fontSize: `${block.style?.fontSize}px`,
+                  fontSize: block.style?.fontSize,
                   textAlign: block.style?.textAlign,
+                  fontWeight: block.style?.fontWeight,
                   fontFamily: block.style?.fontFamily,
-                  // Removed pre-wrap from Quill style to avoid layout issues (Quill handles it internally)
+                  whiteSpace: "pre-wrap",
+                  overflowWrap: "break-word"
                 }}
+              />
+              <input
+                className="text-[10px] text-blue-400 bg-transparent outline-none border-none italic opacity-60 hover:opacity-100 transition"
+                placeholder="Heading Link (Optional)"
+                value={block?.style?.link || ""}
+                onChange={(e) => updateStyle("link", e.target.value)}
               />
             </div>
           )}
@@ -720,8 +1854,47 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
       );
     }
 
+    // TEXT / PARAGRAPH
+    if (block?.type === "text") {
+      const textStyles = {
+        color: block.style?.textColor || "#000000",
+        fontSize: block.style?.fontSize ? `${block?.style.fontSize}px` : "16px",
+        fontWeight: block.style?.fontWeight || "normal",
+        textAlign: block.style?.textAlign || "left",
+        fontFamily: block.style?.fontFamily || "inherit",
+        lineHeight: block.style?.lineHeight || "1.6",
+        letterSpacing: block.style?.letterSpacing || "normal",
+        textDecoration: block.style?.textDecoration || "none",
+        textTransform: block.style?.textTransform || "none",
+      };
+
+      return (
+        <div style={getCommonStyles(block)}>
+          <TextEditor
+            readOnly={readOnly}
+            value={block.content}
+            onChange={(val) => update("content", val)}
+            style={textStyles}
+            placeholder="Enter text..."
+          />
+        </div>
+      );
+    }
+    if (block?.type === "footerBlock") {
+      return (
+        <FooterBlockRenderer
+          block={block}
+          update={update}
+          readOnly={readOnly}
+          isSelected={isSelected}
+          onSelect={onSelect}
+        />
+      );
+    }
+
+
     // INPUT (Original implementation, no StyleControls added as per new code)
-    if (block.type === "input")
+    if (block?.type === "input")
       return (
         <input
           className="w-full border p-3 border-gray-200 rounded-md"
@@ -729,120 +1902,18 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
         />
       );
 
-    // BANNER
-    if (block.type === "banner") {
-      return (
-        <div style={getCommonStyles(block)}>
-          {block.url ? (
-            <img src={block.url} className="w-full rounded-xl shadow-sm mb-4" />
-          ) : (
-            !readOnly && <div className="w-full h-40 bg-blue-50 border-2 border-dashed border-blue-200 rounded-xl flex items-center justify-center text-blue-300 mb-4">
-              Banner Preview
-            </div>
-          )}
-          {!readOnly && (
-            <div className="flex gap-4">
-              <input
-                id={`banner-upload-${block.id}`}
-                type="file"
-                className="hidden"
-                accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) update("url", URL.createObjectURL(file));
-                }}
-              />
-              <label
-                htmlFor={`banner-upload-${block.id}`}
-                className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-medium text-center cursor-pointer hover:bg-blue-700 transition"
-              >
-                Upload Banner Image
-              </label>
-            </div>
-          )}
-          {!readOnly && (
-            <div className="mt-4">
-              <input
-                className="w-full border border-gray-200 px-4 py-2 rounded-lg text-sm"
-                placeholder="Or enter Image URL..."
-                value={block.url || ""}
-                onChange={(e) => update("url", e.target.value)}
-              />
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // FEATURE GRID (Make a Note style)
-    if (block.type === "featureGrid") {
-      return (
-        <div style={getCommonStyles(block)}>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            {(block.items || []).map((item, idx) => (
-              <div key={idx} className={`p-3 rounded-xl border border-gray-100 relative group ${readOnly ? "" : "hover:border-blue-200"}`}>
-                {readOnly ? (
-                  <>
-                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter w-full outline-none">{item.label}</div>
-                    <div className="text-sm font-semibold text-gray-800 w-full outline-none mt-1">{item.value}</div>
-                  </>
-                ) : (
-                  <>
-                    <input
-                      className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter w-full outline-none"
-                      value={item.label}
-                      onChange={(e) => {
-                        const newItems = [...block.items];
-                        newItems[idx].label = e.target.value;
-                        update("items", newItems);
-                      }}
-                    />
-                    <input
-                      className="text-sm font-semibold text-gray-800 w-full outline-none mt-1"
-                      value={item.value}
-                      onChange={(e) => {
-                        const newItems = [...block.items];
-                        newItems[idx].value = e.target.value;
-                        update("items", newItems);
-                      }}
-                    />
-                    <button
-                      className="absolute -top-2 -right-2 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-                      onClick={() => {
-                        const newItems = block.items.filter((_, i) => i !== idx);
-                        update("items", newItems);
-                      }}
-                    >
-                      ×
-                    </button>
-                  </>
-                )}
-              </div>
-            ))}
-            {!readOnly && (
-              <button
-                onClick={() => update("items", [...block.items, { label: "Label", value: "Value" }])}
-                className="border-2 border-dashed border-gray-200 rounded-xl p-3 text-gray-400 hover:border-blue-400 hover:text-blue-400 transition"
-              >
-                + Add Item
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    }
 
     // SOCIAL LINKS
-    if (block.type === "socialLinks") {
+    if (block?.type === "socialLinks") {
       return (
         <div style={getCommonStyles(block)}>
-          <div className="flex gap-4 justify-center flex-wrap mb-4">
+          <div style={readOnly ? { display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '16px' } : {}} className={!readOnly ? "flex gap-4 justify-center flex-wrap mb-4" : ""}>
             {(block.links || []).map((link, idx) => (
-              <div key={idx} className={`bg-white p-2 rounded-lg border border-gray-200 flex flex-col gap-2 min-w-[120px] relative group ${readOnly ? "" : "hover:border-blue-200"}`}>
+              <div key={idx} style={readOnly ? { backgroundColor: '#ffffff', padding: '8px', borderRadius: '8px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '120px' } : {}} className={!readOnly ? "bg-white p-2 rounded-lg border border-gray-200 flex flex-col gap-2 min-w-[120px] relative group hover:border-blue-200" : ""}>
                 {readOnly ? (
                   <>
-                    <div className="text-[10px] font-bold outline-none border rounded p-1 uppercase bg-gray-50">{link.platform}</div>
-                    <div className="text-[10px] outline-none border rounded p-1 text-blue-600 truncate max-w-[120px]">{link.url}</div>
+                    <div style={{ fontSize: '10px', fontWeight: 'bold', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '4px', textTransform: 'uppercase', backgroundColor: '#f9fafb', textAlign: 'center' }}>{link.platform}</div>
+                    <div style={{ fontSize: '10px', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '4px', color: '#2563EB', maxWidth: '120px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center' }}>{link.url}</div>
                   </>
                 ) : (
                   <>
@@ -898,151 +1969,26 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
       );
     }
 
-    // NAVIGATION
-    if (block.type === "navigation") {
-      return (
-        <div style={getCommonStyles(block)}>
-          <div className="flex gap-4 justify-center flex-wrap mb-4">
-            {(block.links || []).map((link, idx) => (
-              <div key={idx} className={`flex gap-2 bg-white p-2 rounded-lg border border-gray-200 relative group ${readOnly ? "" : "hover:border-blue-200"}`}>
-                {readOnly ? (
-                  <>
-                    <div className="text-xs font-bold font-semibold outline-none border rounded p-1 w-20 bg-gray-50">{link.label}</div>
-                    <div className="text-[10px] outline-none border rounded p-1 w-24 text-blue-600 truncate">{link.url}</div>
-                  </>
-                ) : (
-                  <>
-                    <input
-                      placeholder="Label"
-                      value={link.label}
-                      onChange={(e) => {
-                        const newLinks = [...block.links];
-                        newLinks[idx].label = e.target.value;
-                        update("links", newLinks);
-                      }}
-                      className="text-xs font-bold font-semibold outline-none border rounded p-1 w-20"
-                    />
-                    <input
-                      placeholder="URL"
-                      value={link.url}
-                      onChange={(e) => {
-                        const newLinks = [...block.links];
-                        newLinks[idx].url = e.target.value;
-                        update("links", newLinks);
-                      }}
-                      className="text-[10px] outline-none border rounded p-1 w-24"
-                    />
-                    <button
-                      className="absolute -top-2 -right-2 bg-red-500 text-white w-4 h-4 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-                      onClick={() => {
-                        const newLinks = block.links.filter((_, i) => i !== idx);
-                        update("links", newLinks);
-                      }}
-                    >
-                      ×
-                    </button>
-                  </>
-                )}
-              </div>
-            ))}
-            {!readOnly && (
-              <button
-                onClick={() => update("links", [...block.links, { label: "Link", url: "#" }])}
-                className="border-2 border-dashed border-gray-200 rounded-lg p-2 text-gray-400 hover:border-blue-400 hover:text-blue-400 transition text-xs"
-              >
-                + Link
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    }
 
     // DIVIDER
-    if (block.type === "divider") {
+    if (block?.type === "divider") {
       return (
         <div style={getCommonStyles(block)}>
-          <hr className="border-t-2 border-gray-100" />
+          <hr style={{ borderTop: '2px solid #f3f4f6', margin: 0 }} className={!readOnly ? "border-t-2 border-gray-100" : ""} />
         </div>
       );
     }
 
-    // ACCORDION
-    if (block.type === "accordion") {
-      return (
-        <div style={getCommonStyles(block)}>
-          <div className="space-y-3 mb-4">
-            {(block.items || []).map((item, idx) => (
-              <div key={idx} className={`bg-white p-4 rounded-xl border border-gray-100 shadow-sm relative group ${readOnly ? "" : "hover:border-blue-200"}`}>
-                {readOnly ? (
-                  <>
-                    <div className="text-sm font-bold w-full outline-none mb-2 border-b border-gray-50 pb-1 resize-none overflow-hidden whitespace-pre-wrap break-words">{item.title}</div>
-                    <div className="text-xs text-gray-500 w-full outline-none resize-none min-h-[60px] whitespace-pre-wrap break-words overflow-hidden">{item.content}</div>
-                  </>
-                ) : (
-                  <>
-                    <textarea
-                      className="text-sm font-bold w-full outline-none mb-2 border-b border-gray-50 pb-1 resize-none overflow-hidden whitespace-pre-wrap break-words"
-                      placeholder="Item Title"
-                      value={item.title}
-                      onInput={(e) => {
-                        e.target.style.height = "auto";
-                        e.target.style.height = e.target.scrollHeight + "px";
-                      }}
-                      onChange={(e) => {
-                        const newItems = [...block.items];
-                        newItems[idx].title = e.target.value;
-                        update("items", newItems);
-                      }}
-                    />
-                    <textarea
-                      className="text-xs text-gray-500 w-full outline-none resize-none min-h-[60px] whitespace-pre-wrap break-words overflow-hidden"
-                      placeholder="Item Content"
-                      value={item.content}
-                      onInput={(e) => {
-                        e.target.style.height = "auto";
-                        e.target.style.height = e.target.scrollHeight + "px";
-                      }}
-                      onChange={(e) => {
-                        const newItems = [...block.items];
-                        newItems[idx].content = e.target.value;
-                        update("items", newItems);
-                      }}
-                    />
-                    <button
-                      className="absolute -top-2 -right-2 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-                      onClick={() => {
-                        const newItems = block.items.filter((_, i) => i !== idx);
-                        update("items", newItems);
-                      }}
-                    >
-                      ×
-                    </button>
-                  </>
-                )}
-              </div>
-            ))}
-            {!readOnly && (
-              <button
-                onClick={() => update("items", [...block.items, { title: "Title", content: "Content" }])}
-                className="border-2 border-dashed border-gray-200 rounded-xl p-3 text-gray-400 hover:border-blue-400 hover:text-blue-400 transition w-full text-sm"
-              >
-                + Add Accordion Item
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    }
 
     // IMAGE (Original implementation with style support)
-    if (block.type === "image") {
+    if (block?.type === "image") {
       return (
         <div style={getCommonStyles(block)}>
           {block.url && (
             <img
               src={block.url}
-              className="w-full max-h-96 object-contain rounded-xl mb-4"
+              style={readOnly ? { width: '100%', borderRadius: '12px', marginBottom: '16px', display: 'block' } : {}}
+              className={!readOnly ? "w-full rounded-xl mb-4" : ""}
             />
           )}
           {!readOnly && (
@@ -1060,13 +2006,19 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
               <label
                 htmlFor={`image-upload-${block.id}`}
                 className="flex items-center justify-center gap-2 cursor-pointer
-            rounded-xl border-2 border-dashed border-gray-300
-            px-6 py-4 text-gray-600 mb-4
-            hover:border-blue-500 hover:text-blue-600
-            transition-all duration-200"
+              rounded-xl border-2 border-dashed border-gray-300
+              px-6 py-4 text-gray-600 mb-2
+              hover:border-blue-500 hover:text-blue-600
+              transition-all duration-200"
               >
                 Click to upload image
               </label>
+              <input
+                className="w-full text-[11px] bg-white border border-gray-100 rounded px-2 py-1.5 outline-none mb-4 text-blue-500 italic shadow-sm"
+                placeholder="Image Click URL (e.g., https://...)"
+                value={block?.style?.link || ""}
+                onChange={(e) => updateStyle("link", e.target.value)}
+              />
             </>
           )}
         </div>
@@ -1074,29 +2026,39 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     }
 
     // BUTTON
-    if (block.type === "btn") {
+    if (block?.type === "btn") {
       return (
         <div>
           <button
-            className="px-8 py-3 rounded-full transition-transform hover:scale-105"
+            className={!readOnly ? "px-8 py-3 rounded-full transition-transform hover:scale-105" : ""}
             style={{
               backgroundColor: block.style?.backgroundColor === "transparent" ? "#237FEA" : (block.style?.backgroundColor || "#237FEA"),
               color: block.style?.textColor || "#ffffff",
               fontSize: block.style?.fontSize,
-              borderRadius: block.style?.borderRadius,
+              borderRadius: block.style?.borderRadius || '24px',
               fontFamily: block.style?.fontFamily,
+              padding: '12px 32px',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'inline-block',
               pointerEvents: readOnly ? "none" : "auto"
             }}
           >
             {block.content}
           </button>
           {!readOnly && (
-            <div className="mt-4">
+            <div className="mt-4 flex flex-col gap-2">
               <input
                 className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
                 placeholder="Button Text"
                 value={block.content}
                 onChange={(e) => update("content", e.target.value)}
+              />
+              <input
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-100 text-blue-600 bg-blue-50/30"
+                placeholder="Button Link (URL)"
+                value={block?.style?.link || ""}
+                onChange={(e) => updateStyle("link", e.target.value)}
               />
             </div>
           )}
@@ -1105,34 +2067,127 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     }
 
     // SECTION GRID (Remaining original functionality)
-    if (block.type === "sectionGrid")
+    if (block?.type === "sectionGrid")
       return (
         <div style={getCommonStyles(block)}>
-          <div className={`grid gap-4 grid-cols-${block.columns.length}`}>
+          <div
+            style={{
+              display: "grid",
+              gap: "16px",
+              gridTemplateColumns: `repeat(${block.columns.length + (!readOnly ? 1 : 0)}, minmax(0, 1fr))`,
+            }}
+          >
             {block.columns.map((col, i) => (
-              <div key={i} className={`border-2 border-dashed border-gray-100 rounded-2xl p-4 bg-white/50 ${!readOnly ? "hover:border-blue-200" : ""}`}>
+              <div key={i} style={readOnly ? { flex: 1 } : {}} className={!readOnly ? " rounded-2xl bg-white/50 " : ""}>
                 {!readOnly && (
-                  <div className="flex gap-2 mb-3">
-                    {["text", "image", "btn"].map((t) => (
+                  <div className="flex justify-between items-center mb-2 px-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Col {i + 1}</span>
+                    <div className="flex gap-2">
                       <button
-                        key={t}
-                        className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-                        onClick={() => addChild(i, t)}
+                        onClick={() => duplicateColumn(i)}
+                        className="text-blue-500 hover:text-blue-700 transition"
+                        title="Duplicate Column"
                       >
-                        + {t}
+                        <FaCopy size={12} />
                       </button>
-                    ))}
+                      {block.columns.length > 1 && (
+                        <button
+                          onClick={() => removeColumn(i)}
+                          className="text-red-400 hover:text-red-600 transition"
+                          title="Delete Column"
+                        >
+                          <FaTrashAlt size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {!readOnly && (
+                  <div className="flex flex-col gap-2 mb-3">
+                    {/* If column is empty, show big placeholders */}
+                    {col.length === 0 ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { type: "text", icon: <FaFont />, label: "Text" },
+                          { type: "image", icon: <FaImage />, label: "Image" },
+                          { type: "heading", icon: <FaHeading />, label: "Heading" },
+                          { type: "btn", icon: <FaMousePointer />, label: "Button" },
+                          { type: "infoBox", icon: <FaLayerGroup />, label: "Info Box" },
+                          { type: "noteSection", icon: <FaStickyNote />, label: "Notes" }
+                        ].map(opt => (
+                          <button
+                            key={opt.type}
+                            onClick={() => addChild(i, opt.type)}
+                            className="flex flex-col items-center justify-center p-3 gap-1 bg-white border border-gray-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition text-gray-500 hover:text-blue-600"
+                          >
+                            <span className="text-lg">{opt.icon}</span>
+                            <span className="text-[10px] font-bold uppercase">{opt.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 justify-center">
+                        <span className="text-[10px] text-gray-400 uppercase font-bold self-center mr-2">Add more:</span>
+                        {["text", "image", "heading", "btn", "infoBox", "noteSection"].map((t) => (
+                          <button
+                            key={t}
+                            className="w-6 h-6 flex items-center justify-center text-[10px] font-bold uppercase bg-white border border-gray-200 rounded-full hover:bg-blue-50 hover:border-blue-300 transition text-gray-500"
+                            onClick={() => addChild(i, t)}
+                            title={`Add ${t}`}
+                          >
+                            <FaPlus size={8} />
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
                 {col.map((child) => (
-                  <div key={child.id} className={`mb-4 p-3 bg-white rounded-xl shadow-sm border border-gray-50 relative group ${!readOnly ? "hover:scale-[1.01]" : ""}`}>
+                  <div key={child.id} style={readOnly ? { padding: '4px' } : {}} className={!readOnly ? "p-1 relative group hover:scale-[1.01]" : ""}>
                     {!readOnly && (
-                      <button
-                        className="absolute -top-2 -right-2 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition z-10"
-                        onClick={() => removeChild(i, child.id)}
-                      >
-                        ×
-                      </button>
+                      <div className="absolute -top-2 -right-2 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition">
+                        <button
+                          className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-blue-600 shadow-lg"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateChild(i, child.id, "duplicateBlock", child);
+                          }}
+                          title="Duplicate Block"
+                        >
+                          <FaCopy size={8} />
+                        </button>
+                        <button
+                          className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-600 shadow-lg"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeChild(i, child.id);
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
+                    {child.type === "heading" && (
+                      readOnly ? (
+                        <h3 style={{
+                          margin: 0,
+                          fontSize: child.style?.fontSize ? `${child.style.fontSize}px` : "20px",
+                          fontWeight: "bold",
+                          color: child.style?.textColor || "#000000",
+                          textAlign: child.style?.textAlign || "left",
+                          whiteSpace: "pre-wrap",
+                          overflowWrap: "break-word"
+                        }}>
+                          {child.content}
+                        </h3>
+                      ) : (
+                        <VariableTextarea
+                          className="w-full text-xl font-bold outline-none resize-none bg-transparent whitespace-pre-wrap break-words overflow-hidden"
+                          placeholder="Heading"
+                          value={child.content}
+                          onChange={(e) => updateChild(i, child.id, "content", e.target.value)}
+                        />
+                      )
                     )}
                     {child.type === "text" && (
                       readOnly ? (
@@ -1141,7 +2196,8 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                             color: child.style?.textColor,
                             fontSize: child.style?.fontSize,
                             whiteSpace: "pre-wrap",
-                            overflowWrap: "break-word"
+                            overflowWrap: "break-word",
+                            margin: 0
                           }}
                         >
                           {child.content}
@@ -1157,7 +2213,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                     )}
                     {child.type === "image" && (
                       <div>
-                        {child.url && <img src={child.url} className="w-full h-32 mb-2 rounded-lg object-cover" />}
+                        {child.url && <img src={child.url} style={readOnly ? { width: '100%', height: '128px', marginBottom: '8px', borderRadius: '8px', objectFit: 'cover', display: 'block' } : {}} className={!readOnly ? "w-full h-32 mb-2 rounded-lg object-cover" : ""} />}
                         {!readOnly && (
                           <>
                             <input
@@ -1177,8 +2233,8 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                       </div>
                     )}
                     {child.type === "btn" && (
-                      <div className="flex flex-col gap-2">
-                        <button className="bg-blue-600 text-white px-4 py-1 rounded text-xs">
+                      <div style={readOnly ? { display: 'flex', flexDirection: 'column', gap: '8px' } : {}} className={!readOnly ? "flex flex-col gap-2" : ""}>
+                        <button style={readOnly ? { backgroundColor: '#2563EB', color: '#ffffff', padding: '8px 16px', borderRadius: '4px', border: 'none', fontSize: '12px', cursor: 'pointer', alignSelf: 'flex-start' } : {}} className={!readOnly ? "bg-blue-600 text-white px-4 py-2 w-max rounded text-xs" : ""}>
                           {child.content || "Button"}
                         </button>
                         {!readOnly && (
@@ -1191,49 +2247,149 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                         )}
                       </div>
                     )}
+                    {child.type === "infoBox" && (
+                      <InfoBoxRenderer
+                        block={child}
+                        update={(key, value) => updateChild(i, child.id, key, value)}
+                        readOnly={readOnly}
+                      />
+                    )}
+
                   </div>
                 ))}
               </div>
             ))}
+            {!readOnly && (
+              <div className="flex items-center">
+                <button
+                  onClick={addColumn}
+                  className="h-full border-2 border-dashed border-gray-200 rounded-2xl p-4 text-gray-400 hover:border-blue-400 hover:text-blue-400 transition flex flex-col items-center justify-center gap-2 min-w-[100px]"
+                  title="Add New Column"
+                >
+                  <FaPlus size={20} />
+                  <span className="text-[10px] font-bold uppercase">Add Column</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       );
 
     // CARD ROW
-    if (block.type === "cardRow") {
+    if (block?.type === "cardRow") {
       return (
-        <div style={{
-          ...getCommonStyles(block),
-          display: block.style?.display || "flex",
-          flexDirection: block.style?.flexDirection || "row",
-          flexWrap: "wrap",
-          gap: `${block.style?.gap || 20}px`,
-          alignItems: block.style?.alignItems || "stretch",
-          justifyContent: block.style?.justifyContent || "start",
-        }}>
+        <div
+          style={{
+            ...getCommonStyles(block),
+            display: block.style?.display || "flex",
+            flexDirection: block.style?.flexDirection || "row",
+            flexWrap: "wrap",
+            gap: `${block?.style?.gap || 20}px`,
+            alignItems: block.style?.alignItems || "stretch",
+            justifyContent: block.style?.justifyContent || "start",
+          }}
+        >
           {(block.cards || []).map((card) => (
-            <div key={card.id} className={`relative group/card flex-1 min-w-[200px] ${readOnly ? "" : "hover:shadow-md"}`} style={{
-              backgroundColor: card.style?.backgroundColor,
-              borderRadius: card.style?.borderRadius,
-              padding: card.style?.padding,
-              border: "1px solid #eee"
-            }}>
+            <div
+              key={card.id}
+              className={
+                !readOnly
+                  ? "relative group/card flex-1 min-w-[200px] hover:shadow-md"
+                  : ""
+              }
+              style={{
+                backgroundColor: card.style?.backgroundColor,
+                borderRadius: card.style?.borderRadius || "12px",
+                padding: card.style?.padding || "16px",
+                border: "1px solid #eee",
+                flex: "1 1 200px",
+                minWidth: "200px",
+                position: "relative",
+              }}
+            >
+              {/* Duplicate / Delete Buttons */}
               {!readOnly && (
-                <button
-                  className="absolute -top-3 -right-3 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover/card:opacity-100 transition z-10"
-                  onClick={() => removeCardFromRow(card.id)}
-                >
-                  ×
-                </button>
+                <div className="absolute -top-3 -right-3 flex gap-1 z-10 opacity-0 group-hover/card:opacity-100 transition">
+                  <button
+                    className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-blue-600 shadow-lg"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      duplicateCard(card.id);
+                    }}
+                    title="Duplicate Card"
+                  >
+                    ⧉
+                  </button>
+
+                  <button
+                    className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-600 shadow-lg"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeCardFromRow(card.id);
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
               )}
-              <div className="space-y-3">
+
+              <div
+                style={
+                  readOnly
+                    ? { display: "flex", flexDirection: "column", gap: "12px" }
+                    : {}
+                }
+                className={!readOnly ? "space-y-3" : ""}
+              >
+                {/* IMAGE */}
                 {card.url ? (
-                  <img src={card.url} className="w-full rounded-lg object-cover h-32" />
+                  readOnly && card.link ? (
+                    <a
+                      href={card.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <img
+                        src={card.url}
+                        alt=""
+                        style={{
+                          width: "100%",
+                          borderRadius: "8px",
+                          objectFit: "cover",
+                          height: "128px",
+                          display: "block",
+                        }}
+                      />
+                    </a>
+                  ) : (
+                    <img
+                      src={card.url}
+                      alt=""
+                      className={
+                        !readOnly
+                          ? "w-full rounded-lg object-cover h-32"
+                          : ""
+                      }
+                      style={
+                        readOnly
+                          ? {
+                            width: "100%",
+                            borderRadius: "8px",
+                            objectFit: "cover",
+                            height: "128px",
+                            display: "block",
+                          }
+                          : {}
+                      }
+                    />
+                  )
                 ) : (
-                  <div className="w-full h-32 bg-gray-50 rounded-lg flex items-center justify-center text-gray-300 text-[10px]">
+                  <div className="w-full h-32 bg-gray-50 rounded-lg flex items-center justify-center text-gray-300 text-xs">
                     Card Image
                   </div>
                 )}
+
+                {/* Upload Button */}
                 {!readOnly && (
                   <>
                     <input
@@ -1243,46 +2399,103 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                       accept="image/*"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) updateCardInRow(card.id, "url", URL.createObjectURL(file));
+                        if (file) {
+                          updateCardInRow(
+                            card.id,
+                            "url",
+                            URL.createObjectURL(file)
+                          );
+                        }
                       }}
                     />
                     <label
                       htmlFor={`card-row-upload-${card.id}`}
-                      className="block text-center text-blue-500 text-[10px] cursor-pointer hover:underline"
+                      className="block text-center text-blue-500 text-xs cursor-pointer hover:underline"
                     >
                       Upload Photo
                     </label>
                   </>
                 )}
 
+                {/* READ ONLY MODE */}
                 {readOnly ? (
-                  <>
-                    <h4 style={{ margin: 0, fontSize: "16px", fontWeight: "bold", whiteSpace: "pre-wrap", overflowWrap: "break-word" }}>
+                  <a
+                    href={card.link || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      textDecoration: "none",
+                      color: "inherit",
+                      display: "block",
+                    }}
+                  >
+                    <h4
+                      style={{
+                        margin: 0,
+                        fontSize: "16px",
+                        fontWeight: "bold",
+                        whiteSpace: "pre-wrap",
+                        overflowWrap: "break-word",
+                      }}
+                    >
                       {card.title}
                     </h4>
-                    <p style={{ margin: 0, fontSize: "14px", color: "#666", whiteSpace: "pre-wrap", overflowWrap: "break-word" }}>
+
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "14px",
+                        color: "#666",
+                        whiteSpace: "pre-wrap",
+                        overflowWrap: "break-word",
+                      }}
+                    >
                       {card.description}
                     </p>
-                  </>
+                  </a>
                 ) : (
                   <>
+                    {/* TITLE */}
                     <textarea
                       className="w-full bg-transparent outline-none font-bold text-sm resize-none overflow-hidden whitespace-pre-wrap break-words"
                       value={card.title}
                       onInput={(e) => {
                         e.target.style.height = "auto";
-                        e.target.style.height = e.target.scrollHeight + "px";
+                        e.target.style.height =
+                          e.target.scrollHeight + "px";
                       }}
-                      onChange={(e) => updateCardInRow(card.id, "title", e.target.value)}
+                      onChange={(e) =>
+                        updateCardInRow(card.id, "title", e.target.value)
+                      }
                     />
+
+                    {/* DESCRIPTION */}
                     <textarea
-                      className="w-full bg-transparent outline-none text-[10px] text-gray-500 resize-none min-h-[40px] whitespace-pre-wrap break-words overflow-hidden"
+                      className="w-full bg-transparent outline-none text-xs text-gray-500 resize-none min-h-[40px] whitespace-pre-wrap break-words overflow-hidden"
                       value={card.description}
                       onInput={(e) => {
                         e.target.style.height = "auto";
-                        e.target.style.height = e.target.scrollHeight + "px";
+                        e.target.style.height =
+                          e.target.scrollHeight + "px";
                       }}
-                      onChange={(e) => updateCardInRow(card.id, "description", e.target.value)}
+                      onChange={(e) =>
+                        updateCardInRow(
+                          card.id,
+                          "description",
+                          e.target.value
+                        )
+                      }
+                    />
+
+                    {/* LINK FIELD */}
+                    <input
+                      type="text"
+                      placeholder="Enter link (https://example.com)"
+                      className="w-full bg-transparent outline-none text-xs text-blue-500 border-t border-gray-100 pt-2"
+                      value={card.link || ""}
+                      onChange={(e) =>
+                        updateCardInRow(card.id, "link", e.target.value)
+                      }
                     />
                   </>
                 )}
@@ -1290,27 +2503,30 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
             </div>
           ))}
 
+          {/* ADD CARD BUTTON */}
           {!readOnly && (
             <div className="flex items-center justify-center min-w-[100px]">
               <button
                 onClick={addCardToRow}
-                className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-gray-400 hover:border-blue-400 hover:text-blue-400 transition flex items-center justify-center gap-2 text-sm"
+                className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-gray-400 hover:border-blue-400 hover:text-blue-400 transition text-sm"
               >
                 + Add Card
               </button>
             </div>
           )}
-
         </div>
       );
     }
 
+
     // ✅ HERO SECTION (Wavy)
-    if (block.type === "heroSection") {
+    if (block?.type === "heroSection") {
       return (
-        <div style={getCommonStyles(block)} className="relative overflow-hidden group">
+        <div style={getCommonStyles(block)} className={!readOnly ? "relative overflow-hidden group" : ""}>
           <div style={{
-            padding: `${block.style?.padding || 0}px ${block.style?.padding || 0}px 100px`, // extra space for wave
+            position: readOnly ? 'relative' : undefined,
+            zIndex: 10,
+            padding: `${block?.style?.padding || 0}px ${block?.style?.padding || 0}px 100px`, // extra space for wave
             textAlign: "center",
             color: block.style?.textColor,
           }}>
@@ -1334,10 +2550,10 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
             )}
 
             {/* Content */}
-            <div className="max-w-lg text-left ps-10 mx-auto relative z-10">
+            <div style={readOnly ? { maxWidth: '32rem', margin: '0 auto', textAlign: 'left', paddingLeft: '2.5rem', position: 'relative', zIndex: 10 } : {}} className={!readOnly ? "max-w-lg text-left ps-10 mx-auto relative z-10" : ""}>
               {/* Logo Placeholder */}
-              <div className="mb-6 flex items-center justify-start  mt-5">
-                <img src="/DashboardIcons/sss-logo.png" className="w-[60px]" alt="" />
+              <div style={readOnly ? { marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', marginTop: '1.25rem' } : {}} className={!readOnly ? "mb-6 flex items-center justify-start  mt-5" : ""}>
+                <img src="/DashboardIcons/sss-logo.png" style={readOnly ? { width: '60px' } : {}} className={!readOnly ? "w-[60px]" : ""} alt="" />
               </div>
 
 
@@ -1356,36 +2572,60 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
 
               {readOnly ? (
                 <p style={{ color: "white", fontSize: "1.125rem", fontWeight: "500", textAlign: "start", whiteSpace: "pre-wrap", overflowWrap: "break-word", marginTop: "1rem" }}>
-                  {block.subtitle}
+                  {block?.subtitle}
                 </p>
               ) : (
                 <textarea
                   className="w-full bg-transparent text-white text-lg font-medium text-start outline-none mt-4 resize-none overflow-hidden opacity-90"
-                  value={block.subtitle}
+                  value={block?.subtitle}
                   onChange={(e) => update("subtitle", e.target.value)}
                   style={{ color: "inherit" }}
                 />
               )}
 
-              <div className="mt-8 flex justify-end ">
+              <div style={readOnly ? { marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' } : {}} className={!readOnly ? "mt-8 flex justify-end " : ""}>
                 {readOnly ? (
-                  <button className="bg-yellow-400 w-auto text-black px-4 py-2 rounded-full shadow-lg" style={{ pointerEvents: 'none' }}>
+                  <a
+                    href={block.link || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      backgroundColor: '#FBBF24',
+                      color: '#000000',
+                      padding: '8px 24px',
+                      borderRadius: '9999px',
+                      border: 'none',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                      textDecoration: 'none',
+                      fontWeight: '600',
+                      fontSize: '14px'
+                    }}
+                    className="transition transform hover:scale-105 shadow-lg"
+                  >
                     {block.buttonText}
-                  </button>
+                  </a>
                 ) : (
-                  <input
-                    className="bg-yellow-400 w-max text-black px-2 py-3 rounded-full outline-none text-center cursor-pointer hover:scale-105 transition transform shadow-lg"
-                    value={block.buttonText}
-                    onChange={(e) => update("buttonText", e.target.value)}
-                  />
+                  <div className="flex flex-col gap-2 items-end">
+                    <input
+                      className="bg-yellow-400 w-max text-black px-4 py-2 rounded-full outline-none text-center cursor-pointer hover:scale-105 transition transform shadow-lg font-bold"
+                      value={block.buttonText}
+                      onChange={(e) => update("buttonText", e.target.value)}
+                    />
+                    <input
+                      className="bg-white/20 border border-white/30 text-[10px] text-white px-2 py-1 rounded w-40 outline-none placeholder:text-white/40"
+                      placeholder="Button Link (URL)"
+                      value={block.link}
+                      onChange={(e) => update("link", e.target.value)}
+                    />
+                  </div>
                 )}
               </div>
             </div>
           </div>
 
           {/* WAVE SVG */}
-          <div className="absolute bottom-0 left-0 w-full leading-none">
-            <svg viewBox="0 0 1440 320" className="w-full h-auto block" style={{ transform: "translateY(5px)" }}>
+          <div style={readOnly ? { position: 'absolute', bottom: 0, left: 0, width: '100%', lineHeight: 0 } : {}} className={!readOnly ? "absolute bottom-0 left-0 w-full leading-none" : ""}>
+            <svg viewBox="0 0 1440 320" style={{ transform: "translateY(5px)", width: "100%", height: "auto", display: "block" }} className={!readOnly ? "w-full h-auto block" : ""}>
               <path fill="#ffffff" fillOpacity="1" d="M0,224L48,213.3C96,203,192,181,288,181.3C384,181,480,203,576,224C672,245,768,267,864,261.3C960,256,1056,224,1152,197.3C1248,171,1344,149,1392,138.7L1440,128L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
             </svg>
           </div>
@@ -1394,175 +2634,32 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     }
 
     // ✅ INFO BOX
-    if (block.type === "infoBox") {
+    if (block?.type === "infoBox") {
       return (
-
-
-        <div style={{
-          backgroundColor: block.style?.backgroundColor,
-          borderRadius: block.style?.borderRadius,
-          border: `${block.style?.borderWidth || 0}px solid ${block.style?.borderColor || "transparent"}`,
-          padding: "20px",
-          display: "grid",
-          borderTop: "2px solid green",
-          borderTopLeftRadius: "10px",
-          borderTopRightRadius: "10px",
-          gridTemplateColumns: `repeat(${(block.items || []).length > 0 ? (block.items || []).length : 1}, 1fr)`,
-          gap: "10px",
-        }}>
-          {(block.items || []).map((item, i) => (
-            <div key={i} className={`text-center group  relative ${readOnly ? "" : ""}`}>
-              {!readOnly && (
-                <button
-                  onClick={() => {
-                    const newItems = block.items.filter((_, idx) => idx !== i);
-                    update("items", newItems);
-                  }}
-                  className="absolute -top-3 right-0 text-red-500 text-xs opacity-0 group-hover:opacity-100"
-                >✕</button>
-              )}
-              {readOnly ? (
-                <>
-                  <div className="block w-full text-xs font-bold text-gray-800 text-start mb-1">{item.label}</div>
-                  <div className="mt-1 text-sm text-start">{item.value ? <div dangerouslySetInnerHTML={{ __html: item.value }} /> : null}</div>
-                </>
-              ) : (
-                <>
-
-                  <div className="text-editor-container grid  mt-1">
-                    <input
-                      value={item.label || ""}
-                      onChange={(e) => {
-                        const newItems = [...block.items];
-                        newItems[i].label = e.target.value;
-                        update("items", newItems);
-                      }}
-                      className="text-xs focus:outline-none"
-                      placeholder="Label"
-                    />
-                    <input
-                      value={item.value || ""}
-                      onChange={(e) => {
-                        const newItems = [...block.items];
-                        newItems[i].value = e.target.value;
-                        update("items", newItems);
-                      }}
-                      className="text-xs focus:outline-none"
-                      placeholder="Value"
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
-          {!readOnly && (
-            <button
-              onClick={() => update("items", [...block.items, { label: "Label", value: "Value" }])}
-              className="text-xl font-bold text-gray-400 hover:text-blue-500"
-            >
-              +
-            </button>
-          )}
-        </div>
-      );
-    }
-
-    // ✅ VIDEO GRID
-    if (block.type === "videoGrid") {
-      return (
-        <div style={getCommonStyles(block)}>
-          <div className="grid grid-cols-2 gap-6">
-            {(block.items || []).map((item, i) => (
-              <div key={i} className="group relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center cursor-pointer hover:opacity-90 transition">
-                {/* Thumbnail */}
-                {item.thumbnail ? (
-                  <img src={item.thumbnail} className="absolute inset-0 w-full h-full object-cover opacity-60" />
-                ) : (
-                  <div className="absolute inset-0 bg-gray-800 flex items-center justify-center">
-                    <FaImage className="text-gray-600 text-4xl" />
-                  </div>
-                )}
-
-                {/* Play Button Overlay */}
-                <div className="relative z-10 w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/50">
-                  <FaPlay className="text-white ml-1" />
-                </div>
-
-                {/* Controls */}
-                {!readOnly && (
-                  <div className="absolute bottom-0 left-0 w-full bg-black/70 p-2 flex gap-2 opacity-0 group-hover:opacity-100 transition z-20">
-                    <input
-                      className="flex-1 bg-transparent text-white text-xs outline-none"
-                      placeholder="Video Title"
-                      value={item.title}
-                      onChange={(e) => {
-                        const newItems = [...block.items];
-                        newItems[i].title = e.target.value;
-                        update("items", newItems);
-                      }}
-                    />
-                    <label className="text-white text-xs underline cursor-pointer">
-                      Img
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const newItems = [...block.items];
-                            newItems[i].thumbnail = URL.createObjectURL(file);
-                            update("items", newItems);
-                          }
-                        }}
-                      />
-                    </label>
-                    <button
-                      onClick={() => {
-                        const newItems = block.items.filter((_, idx) => idx !== i);
-                        update("items", newItems);
-                      }}
-                      className="text-red-400 font-bold"
-                    >✕</button>
-                  </div>
-                )}
-              </div>
-            ))}
-            {!readOnly && (
-              <div
-                onClick={() => update("items", [...(block.items || []), { title: "New Video", thumbnail: "" }])}
-                className="aspect-video rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 cursor-pointer hover:bg-gray-50 hover:border-blue-400 hover:text-blue-400 transition"
-              >
-                + Add Video
-              </div>
-            )}
-          </div>
-        </div>
+        <InfoBoxRenderer block={block} update={update} readOnly={readOnly} />
       );
     }
 
     // ✅ WAVE FOOTER
-
-
-    // ✅ WAVE FOOTER
-    if (block.type === "waveFooter") {
+    if (block?.type === "waveFooter") {
       return (
-        <div style={getCommonStyles(block)} className="relative group">
-          <div className="absolute top-0 left-0 w-full leading-none transform -translate-y-full">
-            <svg viewBox="0 0 1440 320" className="w-full h-auto block">
+        <div style={getCommonStyles(block)} className={!readOnly ? "relative group" : ""}>
+          <div style={readOnly ? { position: 'absolute', top: 0, left: 0, width: '100%', lineHeight: 0, transform: 'translateY(-100%)' } : {}} className={!readOnly ? "absolute top-0 left-0 w-full leading-none transform -translate-y-full" : ""}>
+            <svg viewBox="0 0 1440 320" style={readOnly ? { width: '100%', height: 'auto', display: 'block' } : {}} className={!readOnly ? "w-full h-auto block" : ""}>
               <path
-                fill={block.style?.backgroundColor || "transparent"}
+                fill={block?.style?.backgroundColor || "transparent"}
                 fillOpacity="1"
                 d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,154.7C960,171,1056,181,1152,165.3C1248,149,1344,107,1392,85.3L1440,64L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"
               ></path>
             </svg>
           </div>
-          <div className="text-center py-10 relative z-10" style={{ color: block.style?.textColor }}>
+          <div style={readOnly ? { textAlign: 'center', padding: '40px 0', position: 'relative', zIndex: 10, color: block.style?.textColor } : {}} className={!readOnly ? "text-center py-10 relative z-10" : ""}>
             {readOnly ? (
               <div dangerouslySetInnerHTML={{ __html: block.content || "© 2026 Your Company" }} />
             ) : (
               <VariableTextarea
                 className="w-full bg-transparent text-center outline-none resize-none"
+                style={{ color: block.style?.textColor }}
                 value={block.content}
                 onChange={(e) => update("content", e.target.value)}
               />
@@ -1577,7 +2674,26 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
 
   const content = renderContent();
 
-  if (readOnly) return content;
+  if (readOnly) {
+    // Only wrap in <a> if it's NOT a complex block that handles its own links internally
+    const typesWithInternalLinks = ["cardRow", "socialLinks", "footerBlock", "heroSection"];
+    const hasBlockLink = block.style?.link;
+    const shouldWrap = hasBlockLink && !typesWithInternalLinks.includes(block?.type);
+
+    if (shouldWrap) {
+      return (
+        <a
+          href={block?.style.link}
+          target={block?.style.linkTarget || "_self"}
+          rel="noopener noreferrer"
+          style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+        >
+          {content}
+        </a>
+      );
+    }
+    return content;
+  }
 
   return (
     <div
@@ -1589,10 +2705,22 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     >
       {content}
       {isSelected && (
-        <div className="absolute -top-3 -right-3 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg z-30 animate-pulse">
-          Editing
+        <div className="absolute -top-4 right-8 flex gap-2 z-30">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              update("duplicateBlock", block);
+            }}
+            className="bg-blue-600 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-lg hover:bg-blue-700 transition flex items-center gap-1"
+          >
+            <FaCopy size={10} /> Duplicate Row
+          </button>
+          <div className="bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg animate-pulse">
+            Editing
+          </div>
         </div>
       )}
     </div>
   );
+
 }

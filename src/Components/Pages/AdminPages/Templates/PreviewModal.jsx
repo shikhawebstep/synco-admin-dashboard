@@ -53,19 +53,6 @@ export default function PreviewModal({ mode_of_communication, title, category, t
         }
       }
 
-      // Custom Section (BG and Children)
-      if (block.type === "customSection") {
-        if (block.backgroundImage?.startsWith("blob")) {
-          block.backgroundImage = await convertBlobToBase64(block.backgroundImage);
-        }
-        if (Array.isArray(block.children)) {
-          for (let child of block.children) {
-            if (child.type === "logo" && child.url?.startsWith("blob")) {
-              child.url = await convertBlobToBase64(child.url);
-            }
-          }
-        }
-      }
 
       // CardRow images
       if (block.type === "cardRow" && Array.isArray(block.cards)) {
@@ -104,16 +91,11 @@ export default function PreviewModal({ mode_of_communication, title, category, t
           return url;
         };
 
-        if (block.type === "image" || block.type === "banner" || block.type === "card") {
+        if (block.type === "image" || block.type === "card") {
           block.url = await checkAndReplace(block.url, "image");
         }
 
-        if (block.type === "customSection") {
-          block.backgroundImage = await checkAndReplace(block.backgroundImage, "bg");
-          if (Array.isArray(block.children)) {
-            for (const child of block.children) await collectImages(child);
-          }
-        }
+
 
         if (block.style?.backgroundImage) {
           const rawUrl = block.style.backgroundImage.replace(/url\(["']?|["']?\)/g, '');
@@ -129,11 +111,7 @@ export default function PreviewModal({ mode_of_communication, title, category, t
           }
         }
 
-        if (block.type === "videoGrid" && Array.isArray(block.items)) {
-          for (const item of block.items) {
-            item.thumbnail = await checkAndReplace(item.thumbnail, "video_thumb");
-          }
-        }
+
 
         if (block.type === "heroSection") {
           // check style.backgroundImage
@@ -227,16 +205,10 @@ export default function PreviewModal({ mode_of_communication, title, category, t
           return url;
         };
 
-        if (block.type === "image" || block.type === "banner" || block.type === "card") {
+        if (block.type === "image" || block.type === "card") {
           block.url = await checkAndReplace(block.url, "image");
         }
 
-        if (block.type === "customSection") {
-          block.backgroundImage = await checkAndReplace(block.backgroundImage, "bg");
-          if (Array.isArray(block.children)) {
-            for (const child of block.children) await collectImages(child);
-          }
-        }
 
         if (block.style?.backgroundImage) {
           const rawUrl = block.style.backgroundImage.replace(/url\(["']?|["']?\)/g, '');
@@ -249,12 +221,6 @@ export default function PreviewModal({ mode_of_communication, title, category, t
         if (block.type === "sectionGrid" && Array.isArray(block.columns)) {
           for (const column of block.columns) {
             for (const child of column) await collectImages(child);
-          }
-        }
-
-        if (block.type === "videoGrid" && Array.isArray(block.items)) {
-          for (const item of block.items) {
-            item.thumbnail = await checkAndReplace(item.thumbnail, "video_thumb");
           }
         }
 
@@ -291,6 +257,7 @@ export default function PreviewModal({ mode_of_communication, title, category, t
         subject: previewData.subject,
         htmlContent
       });
+
 
       // append form fields
       formData.append("mode_of_communication", mode_of_communication.value);
@@ -329,28 +296,26 @@ export default function PreviewModal({ mode_of_communication, title, category, t
         </button>
 
       </div>
+      {subject && (
+        <h1 className="text-2xl font-semibold mb-6">{subject}</h1>
+      )}
       <div
+        style={{ maxWidth: "600px", margin: "0 auto" }}
         ref={previewRef}
         className="bg-white w-full max-w-[600px] m-auto overflow-auto space-y-3 "
       >
 
-        {/* Header */}
-
-        {/* ✅ Subject (render only once) */}
-        {subject && (
-          <h1 className="text-2xl font-semibold mb-6">{subject}</h1>
-        )}
-
-        {/* Loop blocks */}
-        {blocks.map((block, i) => (
-          <BlockRenderer
-            key={block.id || i}
-            block={block}
-            blocks={blocks}
-            setBlocks={() => { }}
-            readOnly={true}
-          />
-        ))}
+        <div style={{ maxWidth: "600px", margin: "0 auto", backgroundColor: "#fff" }}>
+          {blocks.map((block, i) => (
+            <BlockRenderer
+              key={block.id || i}
+              block={block}
+              blocks={blocks}
+              setBlocks={() => { }}
+              readOnly={true}
+            />
+          ))}
+        </div>
       </div>
 
     </div>

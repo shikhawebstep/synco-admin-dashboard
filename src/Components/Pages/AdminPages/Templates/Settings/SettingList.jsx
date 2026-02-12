@@ -15,7 +15,6 @@ export default function SettingList() {
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [previewData, setPreviewData] = useState({ subject: "", blocks: [] });
 
-    console.log('PreviewData', previewData)
     useEffect(() => {
         const load = async () => {
             const res = await fetchCommunicationTemplate();
@@ -199,112 +198,12 @@ export default function SettingList() {
                                     </div>
                                 </div>
 
-                                <h1 className="text-2xl font-semibold mb-6">{previewData.subject}</h1>
-
+                                <div
+                                    className="text-gray-800 prose prose-blue max-w-[600px] m-auto"
+                                    dangerouslySetInnerHTML={{ __html: selectedTemplate?.content?.htmlContent }}
+                                />
                                 {/* ✅ ONLY BLOCKS IN LOOP */}
-                                {previewData.blocks.map((block, i) => (
-                                    <div key={i} className="mb-5">
 
-                                        {block.type === "text" && (
-                                            <div
-                                                style={{
-                                                    color: block.style?.textColor,
-                                                    fontSize: block.style?.fontSize,
-                                                    whiteSpace: "pre-wrap",
-                                                    overflowWrap: "break-word"
-                                                }}
-                                                dangerouslySetInnerHTML={{ __html: block.content || "" }}
-                                            />
-                                        )}
-
-                                        {block.type === "image" && (
-                                            <img src={block.url} className="w-full max-h-100 rounded-lg object-cover" alt="" />
-                                        )}
-
-                                        {block.type === "btn" && (
-                                            <button
-                                                style={{
-                                                    backgroundColor: block.style?.backgroundColor,
-                                                    color: block.style?.textColor,
-                                                    fontSize: block.style?.fontSize,
-                                                }}
-                                                className="px-4 py-2 rounded"
-                                            >
-                                                {block.content}
-                                            </button>
-                                        )}
-
-                                        {block.type === "input" && (
-                                            <input
-                                                className="border px-3 py-2 rounded w-full"
-                                                placeholder={block.placeholder}
-                                                value={previewData.blocks[i].content || ""}
-                                                onChange={(e) => {
-                                                    const newState = { ...previewData };
-                                                    newState.blocks[i].content = e.target.value;
-                                                    setPreviewData(newState);
-                                                }}
-                                            />
-                                        )}
-
-                                        {block.type === "sectionGrid" && block.columns && (
-                                            <div className={`grid gap-4 grid-cols-${block.columns.length}`}>
-                                                {block.columns.map((col, ci) => (
-                                                    <div key={ci}>
-                                                        {col.map((child) => (
-                                                            <div key={child.id} className="mb-3">
-
-                                                                {child.type === "text" && (
-                                                                    <div
-                                                                        style={{
-                                                                            color: child.style?.textColor,
-                                                                            fontSize: child.style?.fontSize,
-                                                                            whiteSpace: "pre-wrap",
-                                                                            overflowWrap: "break-word"
-                                                                        }}
-                                                                        dangerouslySetInnerHTML={{ __html: child.content || "" }}
-                                                                    />
-                                                                )}
-
-                                                                {child.type === "image" && (
-                                                                    <img src={child.url} className="rounded object-cover" alt="" />
-                                                                )}
-
-                                                                {child.type === "input" && (
-                                                                    <input
-                                                                        className="border px-2 py-1 rounded"
-                                                                        placeholder={child.placeholder}
-                                                                        value={child.content || ""}
-                                                                        onChange={(e) => {
-                                                                            const newState = { ...previewData };
-                                                                            const target = newState.blocks[i].columns[ci].find((c) => c.id === child.id);
-                                                                            if (target) target.content = e.target.value;
-                                                                            setPreviewData(newState);
-                                                                        }}
-                                                                    />
-                                                                )}
-
-                                                                {child.type === "btn" && (
-                                                                    <button
-                                                                        style={{
-                                                                            backgroundColor: child.style?.backgroundColor,
-                                                                            color: child.style?.textColor,
-                                                                            fontSize: child.style?.fontSize,
-                                                                        }}
-                                                                        className="px-3 py-1 rounded"
-                                                                    >
-                                                                        {child.content}
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                    </div>
-                                ))}
                             </div>
                         )}
                         {selectedTemplate?.mode_of_communication === "text" && (
