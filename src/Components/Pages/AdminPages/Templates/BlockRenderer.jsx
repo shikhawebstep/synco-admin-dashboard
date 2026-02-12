@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import ReactQuill from "react-quill-new";
-import "react-quill-new/dist/quill.snow.css";
+// import "react-quill-new/dist/quill.snow.css";
 import {
   FaPlay, FaImage, FaPlus, FaAlignLeft, FaAlignCenter, FaAlignRight, FaAlignJustify,
   FaChevronDown, FaChevronUp, FaPalette, FaFont, FaArrowsAltV, FaBorderAll,
