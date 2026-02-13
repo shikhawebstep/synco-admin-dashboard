@@ -496,14 +496,16 @@ const TextEditor = ({ value, onChange, style, placeholder, readOnly, id }) => {
   );
 };
 
+const parseUnit = (val) => {
+  if (val === undefined || val === null || val === "" || Number.isNaN(val)) return undefined;
+  if (typeof val === "number") return `${val}px`;
+  if (typeof val === "string" && /^-?\d+(\.\d+)?$/.test(val.trim())) return `${val.trim()}px`;
+  return val;
+};
+
 const getCommonStyles = (b) => {
   if (!b || !b.style) return {};
   const s = b.style;
-  const parseUnit = (val) => {
-    if (val === undefined || val === null || val === "" || Number.isNaN(val)) return undefined;
-    if (typeof val === "number") return `${val}px`;
-    return val;
-  };
 
   return {
     width: s.width || "100%",
@@ -971,6 +973,42 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
       {(block?.type === "cardRow" || (block?.type === "sectionGrid" && block?.style?.display === "grid")) && (
         <>
           <Section id="cardLayout" title="Grid Layout" icon={<FaLayerGroup />}>
+            {/* Width Controls */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Width</label>
+              <input
+                type="text"
+                placeholder="e.g. 100% or 1200"
+                value={block?.style?.width || ""}
+                onChange={(e) => updateStyle("width", e.target.value)}
+                className="text-xs border rounded p-1 w-full h-8"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Max Width</label>
+              <input
+                type="text"
+                placeholder="e.g. 1200"
+                value={block?.style?.maxWidth || ""}
+                onChange={(e) => updateStyle("maxWidth", e.target.value)}
+                className="text-xs border rounded p-1 w-full h-8"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Height</label>
+              <input
+                type="text"
+                placeholder="e.g. auto or 500"
+                value={block?.style?.height || ""}
+                onChange={(e) => updateStyle("height", e.target.value)}
+                className="text-xs border rounded p-1 w-full h-8"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Gap (px)</label>
+              <input type="number" value={block?.style?.gap !== undefined ? block?.style?.gap : 16} onChange={(e) => updateStyle("gap", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" />
+            </div>
+
             <div className="col-span-2 flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Columns</label>
               <select
@@ -986,9 +1024,25 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
                 <option value="5">5 Columns</option>
               </select>
             </div>
+
+            {/* Alignment for Grid */}
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Gap (px)</label>
-              <input type="number" value={block?.style?.gap !== undefined ? block?.style?.gap : 16} onChange={(e) => updateStyle("gap", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" />
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Align (Vertical)</label>
+              <select value={block?.style?.alignItems || "stretch"} onChange={(e) => updateStyle("alignItems", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
+                <option value="stretch">Stretch</option>
+                <option value="center">Center</option>
+                <option value="flex-start">Start</option>
+                <option value="flex-end">End</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Justify (Horiz)</label>
+              <select value={block?.style?.justifyContent || "start"} onChange={(e) => updateStyle("justifyContent", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
+                <option value="start">Start</option>
+                <option value="center">Center</option>
+                <option value="space-between">Space Between</option>
+                <option value="space-around">Space Around</option>
+              </select>
             </div>
           </Section>
 
@@ -1009,6 +1063,16 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
               <label className="text-[10px] font-bold text-gray-400 uppercase">Border Color</label>
               <input type="color" value={block.cardStyle?.borderColor || "#eeeeee"} onChange={(e) => updateStyle("borderColor", e.target.value, "cardStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Card Min Width</label>
+              <input
+                type="text"
+                placeholder="e.g. 200 or 300"
+                value={block.cardStyle?.minWidth || ""}
+                onChange={(e) => updateStyle("minWidth", e.target.value, "cardStyle")}
+                className="text-xs border rounded p-1 w-full h-8"
+              />
+            </div>
             <div className="col-span-2 flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Content Alignment</label>
               <div className="flex bg-white rounded border border-gray-200 p-1 gap-1 justify-center h-8 items-center">
@@ -1022,11 +1086,40 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
           </Section>
 
           <Section id="cardContent" title="Card Content" icon={<FaHeading />}>
-            {/* Image Height */}
-            <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Image Height ({block.cardImageStyle?.height || 128}px)</label>
-              <input type="range" min="50" max="400" value={block.cardImageStyle?.height || 128} onChange={(e) => updateStyle("height", parseInt(e.target.value), "cardImageStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+            {/* Image Controls */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Image Height</label>
+              <input
+                type="text"
+                placeholder="e.g. 150 or 200px"
+                value={block.cardImageStyle?.height || ""}
+                onChange={(e) => updateStyle("height", e.target.value, "cardImageStyle")}
+                className="text-xs border rounded p-1 w-full h-8"
+              />
             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Image Width</label>
+              <input
+                type="text"
+                placeholder="e.g. 100% or 150"
+                value={block.cardImageStyle?.width || ""}
+                onChange={(e) => updateStyle("width", e.target.value, "cardImageStyle")}
+                className="text-xs border rounded p-1 w-full h-8"
+              />
+            </div>
+            <div className="col-span-2 flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Image Fit</label>
+              <select
+                value={block.cardImageStyle?.objectFit || "cover"}
+                onChange={(e) => updateStyle("objectFit", e.target.value, "cardImageStyle")}
+                className="text-xs border rounded p-1 bg-white h-8"
+              >
+                <option value="cover">Cover (Fill)</option>
+                <option value="contain">Contain (Show All)</option>
+                <option value="fill">Stretch</option>
+              </select>
+            </div>
+
             {/* Title */}
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Title Size</label>
@@ -1775,11 +1868,12 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
                   {/* Label */}
                   <div
                     style={{
-                      fontWeight: style.labelFontWeight || 600,
+                      textAlign: 'left',
+                      fontWeight: style.labelFontWeight || 800,
                       fontSize: style.labelFontSize
                         ? `${style.labelFontSize}px`
                         : "14px",
-                      color: style.labelColor || "#374151",
+                      color: style.labelColor || "#34353B",
                       marginBottom: "6px",
                       whiteSpace: "pre-wrap",
                       overflowWrap: "break-word",
@@ -1791,6 +1885,7 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
                   {/* Value */}
                   <div
                     style={{
+                      textAlign: 'left',
                       fontSize: style.valueFontSize
                         ? `${style.valueFontSize}px`
                         : "14px",
@@ -1811,11 +1906,12 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
                   {/* Label */}
                   <div
                     style={{
-                      fontWeight: style.labelFontWeight || 600,
+                      textAlign: 'left',
+                      fontWeight: style.labelFontWeight || 800,
                       fontSize: style.labelFontSize
                         ? `${style.labelFontSize}px`
                         : "14px",
-                      color: style.labelColor || "#374151",
+                      color: style.labelColor || "#111827",
                       marginBottom: "6px",
                       whiteSpace: "pre-wrap",
                       overflowWrap: "break-word",
@@ -1827,6 +1923,7 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
                   {/* Value */}
                   <div
                     style={{
+                      textAlign: 'left',
                       fontSize: style.valueFontSize
                         ? `${style.valueFontSize}px`
                         : "14px",
@@ -2839,9 +2936,9 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                 textAlign: block.cardStyle?.textAlign || "left",
 
                 // Flex Layout
-                flex: columns && columns !== "auto" ? `0 0 ${flexBasis}` : "1 1 200px",
+                flex: columns && columns !== "auto" ? `0 0 ${flexBasis}` : "1 1 auto",
                 maxWidth: columns && columns !== "auto" ? flexBasis : undefined,
-                minWidth: columns && columns !== "auto" ? "auto" : "200px",
+                minWidth: parseUnit(block.cardStyle?.minWidth) || (columns && columns !== "auto" ? "auto" : "200px"),
 
                 position: "relative",
                 display: "flex",
@@ -2895,11 +2992,12 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                         src={card.url}
                         alt=""
                         style={{
-                          width: "100%",
+                          width: parseUnit(block.cardImageStyle?.width) || "100%",
                           borderRadius: "8px",
                           objectFit: block.cardImageStyle?.objectFit || "cover",
-                          height: block.cardImageStyle?.height ? `${block.cardImageStyle.height}px` : "128px",
+                          height: parseUnit(block.cardImageStyle?.height) || "128px",
                           display: "block",
+                          margin: "0 auto"
                         }}
                       />
                     </a>
@@ -2913,11 +3011,12 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                           : ""
                       }
                       style={{
-                        width: "100%",
+                        width: parseUnit(block.cardImageStyle?.width) || "100%",
                         borderRadius: "8px",
                         objectFit: block.cardImageStyle?.objectFit || "cover",
-                        height: block.cardImageStyle?.height ? `${block.cardImageStyle.height}px` : "128px",
+                        height: parseUnit(block.cardImageStyle?.height) || "128px",
                         display: "block",
+                        margin: "0 auto"
                       }}
                     />
                   )
