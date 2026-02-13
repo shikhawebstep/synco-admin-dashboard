@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCommunicationTemplate } from "../../contexts/CommunicationContext";
 import { useNavigate } from "react-router-dom";
 import { showConfirm, showSuccess, showError } from "../../../../../utils/swalHelper";
+import Loader from "../../contexts/Loader";
 
 export default function SettingList() {
-    const { fetchCommunicationTemplate, apiTemplates, deleteCommunicationTemplate } = useCommunicationTemplate();
+    const { fetchCommunicationTemplate, loading, apiTemplates, deleteCommunicationTemplate } = useCommunicationTemplate();
     const navigate = useNavigate();   // ✅ declare navigate
 
     const [activeTab, setActiveTab] = useState("Email");
@@ -73,7 +74,9 @@ export default function SettingList() {
         });
 
     };
-    console.log(';selectedTemplate', selectedTemplate)
+    if (loading) {
+        return <Loader />
+    }
     return (
         <div className="max-w-full mx-auto px-6 py-8">
             <h2 className="text-base mb-6">Settings / <span className="text-blue-600">Templates</span></h2>

@@ -2529,6 +2529,18 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
       );
     }
 
+    // INFO BOX
+    if (block?.type === "infoBox") {
+      return (
+        <InfoBoxRenderer
+          block={block}
+          update={update}
+          readOnly={readOnly}
+        />
+      );
+    }
+
+
 
     // INPUT (Original implementation, no StyleControls added as per new code)
     if (block?.type === "input")
