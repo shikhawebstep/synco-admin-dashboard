@@ -7,11 +7,14 @@ import { usePermission } from '../../../Common/permission';
 import { useSearchParams } from "react-router-dom";
 import Select from "react-select";
 import { showError, showSuccess, showWarning } from '../../../../../../utils/swalHelper';
+import { useAccountsInfo } from '../../../contexts/AccountsInfoContext';
 
 const Feedback = () => {
   const { checkPermission } = usePermission();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  const { oneToOneData } = useAccountsInfo();
 
   // 🔒 FIXED SERVICE TYPE
   const SERVICE_TYPE = "oneToOne";
@@ -20,8 +23,8 @@ const Feedback = () => {
   const bookingId = searchParams.get("id");
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const token = localStorage.getItem("adminToken");
-    const [loadingData, setLoadingData] = useState(false);
-    const { fetchMembers, loading } = useMembers();
+  const [loadingData, setLoadingData] = useState(false);
+  const { fetchMembers, loading } = useMembers();
   const formatDate = (dateString, withTime = false) => {
     if (!dateString) return "-";
     const date = new Date(dateString);
@@ -183,7 +186,7 @@ const Feedback = () => {
     }
     // classScheduleId
     const payload = {
-      oneToOneBookingId: bookingId,
+      oneToOneBookingId: oneToOneData?.booking?.id,
       // classScheduleId,
       serviceType: DISPLAY_SERVICE_TYPE,
       feedbackType,
@@ -252,7 +255,7 @@ const Feedback = () => {
 
     try {
       // Show loading
-     setLoadingData(true);
+      setLoadingData(true);
       const response = await fetch(`${API_BASE_URL}/api/admin/feedback/resolve/${id}`, requestOptions);
 
       const result = await response.json();
@@ -278,7 +281,7 @@ const Feedback = () => {
 
       return result;
     } catch (error) {
-    
+
       console.error(error);
       showError(error.message || "An error occurred while updating.");
 

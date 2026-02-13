@@ -20,7 +20,7 @@ const Feedback = ({ profile }) => {
   // const bookingId = searchParams.get("id");
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const token = localStorage.getItem("adminToken");
-  const bookingId = profile?.bookingId;
+  const bookingId = profile?.id;
   // const bookingId = profile?.id;
   const { fetchMembers, loading } = useMembers();
   const formatDate = (dateString, withTime = false) => {

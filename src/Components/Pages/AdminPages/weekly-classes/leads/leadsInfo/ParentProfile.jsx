@@ -5,7 +5,7 @@ import { useLocation } from 'react-router-dom';
 import "react-phone-input-2/lib/style.css";
 import { useNotification } from "../../../contexts/NotificationContext";
 import { useNavigate } from "react-router-dom";
-import { Mail, MessageSquare } from "lucide-react";
+import { Mail, MessageSquare, Loader2 } from "lucide-react";
 import { showSuccess, showError } from "../../../../../../utils/swalHelper";
 const ParentProfile = (fetchedData) => {
   const { adminInfo } = useNotification();
@@ -16,7 +16,7 @@ const ParentProfile = (fetchedData) => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const token = localStorage.getItem("adminToken");
-const [loadingComment, setLoadingComment] = useState(false);
+  const [loadingComment, setLoadingComment] = useState(false);
   const [showEmailPopup, setShowEmailPopup] = useState(false);
   const [studentsData, setStudentsData] = useState([]);
 
@@ -162,7 +162,7 @@ const [loadingComment, setLoadingComment] = useState(false);
          but for now we'll skip the Swal loading popup and rely on non-blocking UI updates or let the user wait.
          The original code used Swal.showLoading which is blocking. 
          If blocking is desired, we might need a showLoading helper, but for now we'll stick to error/success. */
-setLoadingComment(true)
+      setLoadingComment(true)
       const response = await fetch(`${API_BASE_URL}/api/admin/lead/comment/create`, {
         method: "POST",
         headers: {
@@ -186,7 +186,7 @@ setLoadingComment(true)
     } catch (error) {
       console.error("Error creating comment:", error);
       showError("Network Error", error.message || "An error occurred while submitting.");
-    }finally{
+    } finally {
       setLoadingComment(false)
     }
   };
@@ -603,10 +603,15 @@ setLoadingComment(true)
               />
               <button
                 type="button"
+                disabled={loadingComment}
                 className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                 onClick={handleSubmitComment}
               >
-                <img src="/images/icons/sent.png" alt="Send" />
+                {loadingComment ? (
+                  <Loader2 className="animate-spin w-5 h-5 text-white" />
+                ) : (
+                  <img src="/images/icons/sent.png" alt="Send" />
+                )}
               </button>
             </div>
 

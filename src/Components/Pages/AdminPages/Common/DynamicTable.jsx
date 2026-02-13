@@ -20,7 +20,7 @@ const DynamicTable = ({
       prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]
     );
   };
-  console.log('data in from', from)
+
   // Flatten the data into entries of { ...parentItemFields, student, studentIndex }
   const flattenedData = useMemo(() => {
     if (!Array.isArray(data)) return [];
@@ -33,18 +33,21 @@ const DynamicTable = ({
       }))
     );
   }, [data]);
-  const groupedData = Object.values(
-    flattenedData.reduce((acc, item) => {
-      const key = item.bookingId;
-
-      if (!acc[key]) {
-        acc[key] = { ...item, students: [] };
-      }
-
-      acc[key].students.push(item.student);
-      return acc;
-    }, {})
-  );
+  const groupedData = useMemo(() => {
+    return Object.values(
+      flattenedData.reduce((acc, item) => {
+        const key = item.bookingId || item.id;
+        if (!key) return acc;
+        if (!acc[key]) {
+          acc[key] = { ...item, students: [] };
+        }
+        if (item.student) {
+          acc[key].students.push(item.student);
+        }
+        return acc;
+      }, {})
+    );
+  }, [flattenedData]);
   const useGrouped = ["request to cancel", "full cancel", "all cancel"].includes(from);
 
   const finalData = useGrouped ? groupedData : flattenedData;
@@ -52,7 +55,7 @@ const DynamicTable = ({
   const totalItems = finalData.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / rowsPerPage));
   const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedData = finalData.slice(startIndex, startIndex + rowsPerPage);;
+  const paginatedData = finalData.slice(startIndex, startIndex + rowsPerPage);
 
   // Keep currentPage in range when data or rowsPerPage change
   useEffect(() => {
@@ -71,10 +74,10 @@ const DynamicTable = ({
     }
   }, [isFilterApplied]);
 
-  // If rowsPerPage changes, reset to page 1
+  // If rowsPerPage or data changes, reset to page 1
   useEffect(() => {
     setCurrentPage(1);
-  }, [rowsPerPage]);
+  }, [rowsPerPage, data]);
   // 🟦 GROUP by parent bookingId
 
   // console.log('from', from)
@@ -113,35 +116,13 @@ const DynamicTable = ({
             {paginatedData?.length > 0 ? (
               paginatedData.map((entry, index) => {
                 const { student, studentIndex, parent, ...item } = entry;
-                console.log('entry', paginatedData)
+
                 const uniqueId = (() => {
-                  // Membership: multiple students under same booking
-                  if (from === "membership") {
-                    return `${item.id}`;
-                  }
-
-                  // Single-row sources
-                  if (from === "freetrial" || from === "waitingList") {
-                    return item.id;
-                  }
-
-                  // Cancellation flows
-                  if (
-                    from === "requestToCancel" ||
-                    from === "fullCancel" ||
-                    from === "allCancel"
-                  ) {
-                    // bookingId comes from parent object
-                    return parent?.bookingId || parent?.cancellationId;
-                  }
-
-                  // Default: booking-based tables
-                  return item.bookingId;
+                  const baseId = item.id || item.bookingId || parent?.bookingId || parent?.cancellationId || `row-${startIndex + index}`;
+                  return useGrouped ? `${baseId}` : `${baseId}-${studentIndex}`;
                 })();
 
-
                 const isSelected = selectedIds?.includes(uniqueId);
-console.log('uniqueId', uniqueId, 'isSelected', isSelected)
                 return (
                   <tr
                     key={uniqueId}

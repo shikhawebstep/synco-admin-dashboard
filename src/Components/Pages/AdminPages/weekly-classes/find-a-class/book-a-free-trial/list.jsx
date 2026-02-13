@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 // import Create from './Create';
 import { useNavigate } from 'react-router-dom';
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import PlanTabs from '../PlanTabs';
 
 // import Loader from '../../../../contexts/Loader';
@@ -465,6 +465,8 @@ const List = () => {
         value: cls.id,
         label: cls.className
     }));
+
+    console.log('singleClassSchedulesOnly', singleClassSchedulesOnly)
     useEffect(() => {
         setStudents((prevStudents) => {
             const n = Number(numberOfStudents) || 0; // safety for null/undefined
@@ -618,8 +620,8 @@ const List = () => {
         } catch (error) {
             console.error("Error creating member:", error);
             showError("Network Error", error.message || "An error occurred while submitting the form.");
-        }finally{
-             setLoadingComment(false)
+        } finally {
+            setLoadingComment(false)
         }
     }
 
@@ -1662,10 +1664,15 @@ const List = () => {
                                     className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-[16px] font-semibold outline-none md:w-full w-5/12"
                                 />
                                 <button
+                                    disabled={loadingComment}
                                     className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                                     onClick={handleSubmitComment}
                                 >
-                                    <img src="/images/icons/sent.png" alt="" />
+                                    {loadingComment ? (
+                                        <Loader2 className="animate-spin w-5 h-5 text-white" />
+                                    ) : (
+                                        <img src="/images/icons/sent.png" alt="" />
+                                    )}
                                 </button>
                             </div>
 

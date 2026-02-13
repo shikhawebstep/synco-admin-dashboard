@@ -6,7 +6,7 @@ import Loader from '../../../../contexts/Loader';
 import { usePermission } from '../../../../Common/permission';
 import { useSearchParams } from "react-router-dom";
 import Select from "react-select";
-import { showSuccess, showError, showWarning,  } from '../../../../../../../utils/swalHelper';
+import { showSuccess, showError, showWarning, } from '../../../../../../../utils/swalHelper';
 
 const Feedback = ({ profile }) => {
   const { checkPermission } = usePermission();
@@ -20,7 +20,7 @@ const Feedback = ({ profile }) => {
   // const bookingId = searchParams.get("id");
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const token = localStorage.getItem("adminToken");
-  const bookingId = profile?.bookingId;
+  const bookingId = profile?.id;
   // const bookingId = profile?.id;
   const { fetchMembers, loading } = useMembers();
   const formatDate = (dateString, withTime = false) => {

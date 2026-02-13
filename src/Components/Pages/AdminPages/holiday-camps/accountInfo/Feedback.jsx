@@ -192,7 +192,7 @@ const Feedback = () => {
       notes,
       agentAssigned: agentId,
     };
-    showLoading("Submitting...", "");
+
 
 
     try {
@@ -211,7 +211,7 @@ const Feedback = () => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.message);
 
-      showLoading("Success", result.message);
+      showSuccess("Success", result.message);
       setOpenForm(false);
       setFormData({
         holidayClassScheduleId: null,

@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 
 import { motion } from "framer-motion";
-import { X } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
 import DatePicker from "react-datepicker";
 import Select from "react-select";
 import "react-datepicker/dist/react-datepicker.css";
@@ -193,7 +193,8 @@ const StudentProfile = ({ StudentProfile }) => {
 
         try {
             // Loader skipped
- setLoadingComment(true)
+
+            setLoadingComment(true)
 
             const response = await fetch(`${API_BASE_URL}/api/admin/book/free-trials/comment/create`, requestOptions);
 
@@ -214,8 +215,8 @@ const StudentProfile = ({ StudentProfile }) => {
             console.error("Error creating member:", error);
             showError("Network Error", error.message || "An error occurred while submitting the form.");
         }
-        finally{
-             setLoadingComment(false)
+        finally {
+            setLoadingComment(false)
         }
     }
 
@@ -492,7 +493,11 @@ const StudentProfile = ({ StudentProfile }) => {
                                 className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                                 onClick={handleSubmitComment}
                             >
-                                <img src="/images/icons/sent.png" alt="" />
+                                {loadingComment ? (
+                                    <Loader2 className="animate-spin w-5 h-5 text-white" />
+                                ) : (
+                                    <img src="/images/icons/sent.png" alt="" />
+                                )}
                             </button>
                         </div>
 

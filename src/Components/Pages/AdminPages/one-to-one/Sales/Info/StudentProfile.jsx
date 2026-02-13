@@ -10,6 +10,7 @@ import { FaSave, FaEdit } from "react-icons/fa";
 import { useNotification } from "../../../contexts/NotificationContext";
 import { formatDate } from "date-fns";
 import { showError, showSuccess, showConfirm, showWarning } from "../../../../../../utils/swalHelper";
+import { Loader2 } from "lucide-react";
 const StudentProfile = () => {
   const [editStudent, setEditStudent] = useState({});
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -594,11 +595,16 @@ const StudentProfile = () => {
             className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-[16px] font-semibold outline-none md:w-full w-5/12"
           />
           <button
+            type="button"
             disabled={loadingComment}
             className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
             onClick={handleSubmitComment}
           >
-            <img src="/images/icons/sent.png" alt="" />
+            {loadingComment ? (
+              <Loader2 className="animate-spin w-5 h-5 text-white" />
+            ) : (
+              <img src="/images/icons/sent.png" alt="" />
+            )}
           </button>
         </div>
 

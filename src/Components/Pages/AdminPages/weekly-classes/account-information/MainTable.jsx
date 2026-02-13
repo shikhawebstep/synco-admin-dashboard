@@ -177,11 +177,11 @@ const MainTable = () => {
                                 </thead>
 
                                 <tbody>
-                                    {currentMembers.map((main, idx) => {
+                                    {currentMembers.map((main) => {
                                         const user = main?.booking || main;
                                         const isChecked = selectedUserIds.includes(main.id);
                                         return (
-                                            <tr key={idx} onClick={() => navigate(`/weekly-classes/account-information?id=${main.id}&serviceType=${activeTab}`)} className="border-t font-semibold text-[#282829] border-[#EFEEF2] hover:bg-gray-50">
+                                            <tr key={main.id} onClick={() => navigate(`/weekly-classes/account-information?id=${main.id}&serviceType=${activeTab}`)} className="border-t font-semibold text-[#282829] border-[#EFEEF2] hover:bg-gray-50">
                                                 <td className="p-4 cursor-pointer">
                                                     <div className="flex items-center gap-3">
                                                         <button
@@ -288,7 +288,7 @@ const MainTable = () => {
                         {/* Pagination Controls */}
                         <div className="flex items-center justify-between mt-4 px-2">
                             <p className="text-sm text-gray-600">
-                                Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, members.length)} of {members.length}
+                                Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, activeMembers.length)} of {activeMembers.length}
                             </p>
                             <div className="flex items-center gap-2">
                                 <button

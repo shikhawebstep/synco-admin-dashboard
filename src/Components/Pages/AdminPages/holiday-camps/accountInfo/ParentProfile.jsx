@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { Loader2 } from "lucide-react";
 import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
 import Select from "react-select";
@@ -812,7 +813,11 @@ const ParentProfile = () => {
             className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
             onClick={handleSubmitComment}
           >
-            <img src="/images/icons/sent.png" alt="" />
+            {commentLoading ? (
+              <Loader2 className="animate-spin w-5 h-5 text-white" />
+            ) : (
+              <img src="/images/icons/sent.png" alt="" />
+            )}
           </button>
         </div>
 

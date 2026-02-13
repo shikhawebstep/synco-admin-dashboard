@@ -7,7 +7,7 @@ import "react-phone-input-2/lib/style.css";
 import { Search } from "lucide-react";
 import { useNotification } from "../contexts/NotificationContext";
 import { useMembers } from "../contexts/MemberContext";
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronDown, ChevronUp, X, Loader2 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useHolidayTerm } from "../contexts/HolidayTermsContext";
 import { useDiscounts } from "../contexts/DiscountContext";
@@ -595,7 +595,7 @@ const BookACamp = () => {
                 showError("Failed to Add Comment", result.message || "Something went wrong.");
                 return;
             }
-            showSuccess("Comment Created", result.message || "Comment has been added successfully!");
+            // showSuccess("Comment Created", result.message || "Comment has been added successfully!");
             setComment("");
             fetchComments();
         } catch (error) {
@@ -1317,7 +1317,11 @@ const BookACamp = () => {
                             <img src={adminInfo?.profile ? `${adminInfo.profile}` : '/members/dummyuser.png'} alt="User" className="w-14 h-14 rounded-full object-cover" />
                             <input type="text" name="comment" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add a comment" className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-[16px] font-semibold outline-none md:w-full w-5/12" />
                             <button disabled={commentLoading} className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600" onClick={handleSubmitComment}>
-                                <img src="/images/icons/sent.png" alt="" />
+                                {commentLoading ? (
+                                    <Loader2 className="animate-spin w-5 h-5 text-white" />
+                                ) : (
+                                    <img src="/images/icons/sent.png" alt="" />
+                                )}
                             </button>
                         </div>
 

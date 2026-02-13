@@ -6,7 +6,7 @@ import { Check } from "lucide-react";
 // import Loader from '../../../../contexts/Loader';
 import { format, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Info, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Info, CheckCircle2, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 
 import { evaluate } from 'mathjs';
 
@@ -1870,10 +1870,16 @@ const List = () => {
                   className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-[16px] font-semibold outline-none"
                 />
                 <button
+                  type="button"
+                  disabled={loadingComment}
                   className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                   onClick={handleSubmitComment}
                 >
-                  <img src="/images/icons/sent.png" alt="" />
+                  {loadingComment ? (
+                    <Loader2 className="animate-spin w-5 h-5 text-white" />
+                  ) : (
+                    <img src="/images/icons/sent.png" alt="" />
+                  )}
                 </button>
               </div>
 

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useNotification } from '../../../contexts/NotificationContext';
-import { Check, Mail, MessageSquare, Search, X } from "lucide-react";
+import { Check, Mail, MessageSquare, Search, X, Loader2 } from "lucide-react";
 import { IoIosArrowDown } from "react-icons/io";
 import { motion } from "framer-motion";
 import { IoMdCheckmarkCircle } from "react-icons/io";
@@ -129,7 +129,7 @@ const CandidateVenueDetails = () => {
     };
 
     try {
-       setLoadingComment(true);
+      setLoadingComment(true);
 
 
       const response = await fetch(`${API_BASE_URL}/api/admin/book-membership/comment/create`, requestOptions);
@@ -141,7 +141,7 @@ const CandidateVenueDetails = () => {
         return;
       }
 
-      showSuccess(result.message || " Comment has been  added successfully!");
+      // showSuccess(result.message || " Comment has been  added successfully!");
 
 
 
@@ -151,7 +151,7 @@ const CandidateVenueDetails = () => {
       console.error("Error creating member:", error);
       showError(error.message || error.error || "Failed to fetch comments. Please try again later.");
     } finally {
-       setLoadingComment(false);
+      setLoadingComment(false);
     }
   }
 
@@ -211,7 +211,7 @@ const CandidateVenueDetails = () => {
       )
     );
   };
-      const hearOptions = [
+  const hearOptions = [
     { value: "Google", label: "Google" },
     { value: "Facebook", label: "Facebook" },
     { value: "Instagram", label: "Instagram" },
@@ -277,7 +277,7 @@ const CandidateVenueDetails = () => {
               <div className="space-y-1">
                 <label className="text-[16px] font-semibold block">How did you hear about us?</label>
                 <select className="input border border-[#E2E1E5]  rounded-xl w-full p-3">
-               
+
                   {hearOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -492,7 +492,11 @@ const CandidateVenueDetails = () => {
                 className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                 onClick={handleSubmitComment}
               >
-                <img src="/images/icons/sent.png" alt="" />
+                {loadingComment ? (
+                  <Loader2 className="animate-spin w-5 h-5 text-white" />
+                ) : (
+                  <img src="/images/icons/sent.png" alt="" />
+                )}
               </button>
             </div>
 

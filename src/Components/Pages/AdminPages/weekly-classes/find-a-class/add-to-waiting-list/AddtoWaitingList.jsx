@@ -16,7 +16,7 @@ import { ChevronDown, ChevronUp, Info, CheckCircle2 } from "lucide-react";
 import { evaluate } from 'mathjs';
 
 import { FiSearch } from "react-icons/fi";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import PhoneInput from "react-phone-input-2";
 import 'react-phone-input-2/lib/style.css';
 import DatePicker from "react-datepicker";
@@ -566,7 +566,7 @@ const AddtoWaitingList = () => {
 
     try {
       // Loader skipped
- setLoadingComment(true)
+      setLoadingComment(true)
 
       const response = await fetch(`${API_BASE_URL}/api/admin/waiting-list/comment/create`, requestOptions);
 
@@ -585,10 +585,10 @@ const AddtoWaitingList = () => {
       fetchComments();
     } catch (error) {
       console.error("Error creating member:", error);
-       setLoadingComment(false)
+      setLoadingComment(false)
       showError("Network Error", error.message || "An error occurred while submitting the form.");
-    }finally{
-       setLoadingComment(false)
+    } finally {
+      setLoadingComment(false)
     }
   }
   const token = localStorage.getItem("adminToken");
@@ -1713,10 +1713,15 @@ const AddtoWaitingList = () => {
                   className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-[16px] font-semibold outline-none md:w-full w-5/12"
                 />
                 <button
+                  disabled={loadingComment}
                   className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                   onClick={handleSubmitComment}
                 >
-                  <img src="/images/icons/sent.png" alt="" />
+                  {loadingComment ? (
+                    <Loader2 className="animate-spin w-5 h-5 text-white" />
+                  ) : (
+                    <img src="/images/icons/sent.png" alt="" />
+                  )}
                 </button>
               </div>
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Check, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { FiSearch } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { showWarning, showConfirm, showError } from "../../../../../../utils/swalHelper";
@@ -181,10 +181,10 @@ const List = () => {
     const paymentPlanOptions = numberOfStudents
         ? allPaymentPlans.filter((plan) => plan.all?.students === Number(numberOfStudents))
         : allPaymentPlans;
-    // console.log('singleClassSchedulesOnly', singleClassSchedulesOnly)
+    console.log('singleClassSchedulesOnly', singleClassSchedulesOnly)
 
 
-    const classesWithCapacity = Array.isArray(singleClassSchedulesOnly?.venue?.classSchedules) ? singleClassSchedulesOnly?.venue?.classSchedules?.filter((cls) => {
+    const classesWithCapacity = Array.isArray(singleClassSchedulesOnly?.venueClasses) ? singleClassSchedulesOnly?.venueClasses?.filter((cls) => {
         return cls.capacity > 0;
     }) : [];
     const handleStudentClassChange = (index, selectedOption) => {
@@ -1921,10 +1921,15 @@ const List = () => {
                                     className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-[16px] font-semibold outline-none"
                                 />
                                 <button
+                                    disabled={loadingComment}
                                     className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                                     onClick={handleSubmitComment}
                                 >
-                                    <img src="/images/icons/sent.png" alt="" />
+                                    {loadingComment ? (
+                                        <Loader2 className="animate-spin w-5 h-5 text-white" />
+                                    ) : (
+                                        <img src="/images/icons/sent.png" alt="" />
+                                    )}
                                 </button>
                             </div>
 

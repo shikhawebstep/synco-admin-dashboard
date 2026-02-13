@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { Loader2 } from "lucide-react";
 import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
 import { useNotification } from "../../contexts/NotificationContext";
@@ -307,10 +308,15 @@ const CreateLead = () => {
                         className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-[16px] font-semibold outline-none"
                     />
                     <button
+                        disabled={loadingComment}
                         className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                         onClick={handleSubmitComment}
                     >
-                        <img src="/images/icons/sent.png" alt="Send" />
+                        {loadingComment ? (
+                            <Loader2 className="animate-spin w-5 h-5 text-white" />
+                        ) : (
+                            <img src="/images/icons/sent.png" alt="Send" />
+                        )}
                     </button>
                 </div>
 

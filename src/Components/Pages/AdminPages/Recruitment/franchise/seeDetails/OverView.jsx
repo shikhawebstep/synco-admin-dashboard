@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useNotification } from '../../../contexts/NotificationContext';
-import { Check, Mail, MessageSquare, Search, X } from "lucide-react";
+import { Check, Mail, MessageSquare, Search, X, Loader2 } from "lucide-react";
 import { IoIosArrowDown } from "react-icons/io";
 import { motion } from "framer-motion";
 import { IoMdCheckmarkCircle } from "react-icons/io";
@@ -11,7 +11,7 @@ import PhoneInput from "react-phone-input-2";
 import { useRecruitmentTemplate } from '../../../contexts/RecruitmentContext';
 import { useVenue } from '../../../contexts/VenueContext';
 import Loader from '../../../contexts/Loader';
-import { showConfirm, showError } from '../../../../../../utils/swalHelper';
+import { showConfirm, showError, showSuccess } from '../../../../../../utils/swalHelper';
 const dateOptions = [
   { value: "2025-01-01", label: "Jan 01 2025" },
   { value: "2025-01-02", label: "Jan 02 2025" },
@@ -259,7 +259,7 @@ const OverView = ({ steps, setSteps }) => {
     };
 
     try {
-       setLoadingComment(true);
+      setLoadingComment(true);
 
 
       const response = await fetch(`${API_BASE_URL}/api/admin/book-membership/comment/create`, requestOptions);
@@ -273,14 +273,14 @@ const OverView = ({ steps, setSteps }) => {
       }
 
 
-      showSuccess("Comment Created", " Comment has been  added successfully!");
+      // showSuccess("Comment Created", " Comment has been  added successfully!");
       setComment('');
       fetchComments();
     } catch (error) {
       console.error("Error creating member:", error);
       showError("Error", "Network Error");
     } finally {
-       setLoadingComment(false);
+      setLoadingComment(false);
     }
   }
   const handleChange = (field, value) => {
@@ -885,11 +885,16 @@ const OverView = ({ steps, setSteps }) => {
                 className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-[16px] font-semibold outline-none md:w-full w-5/12"
               />
               <button
+                type="button"
                 disabled={loadingComment}
                 className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                 onClick={handleSubmitComment}
               >
-                <img src="/images/icons/sent.png" alt="" />
+                {loadingComment ? (
+                  <Loader2 className="animate-spin w-5 h-5 text-white" />
+                ) : (
+                  <img src="/images/icons/sent.png" alt="" />
+                )}
               </button>
             </div>
 

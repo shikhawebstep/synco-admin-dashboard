@@ -8,7 +8,7 @@ import { Search } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNotification } from "../../../contexts/NotificationContext";
 import { useMembers } from "../../../contexts/MemberContext";
-import { Mail, MessageSquare, AlertTriangle } from "lucide-react";
+import { Mail, MessageSquare, AlertTriangle, Loader2 } from "lucide-react";
 import { useAccountsInfo } from "../../../contexts/AccountsInfoContext";
 import { useLocation } from "react-router-dom";
 import { showConfirm, showError, showSuccess, showWarning } from "../../../../../../utils/swalHelper";
@@ -225,7 +225,7 @@ const General = () => {
             }
 
 
-            showSuccess(result.message || " Comment has been  added successfully!");
+            // showSuccess(result.message || " Comment has been  added successfully!");
 
 
             setComment('');
@@ -259,13 +259,13 @@ const General = () => {
         return age;
     };
 
-      const hearOptions = [
-    { value: "Google", label: "Google" },
-    { value: "Facebook", label: "Facebook" },
-    { value: "Instagram", label: "Instagram" },
-    { value: "Friend", label: "Friend" },
-    { value: "Flyer", label: "Flyer" },
-  ];
+    const hearOptions = [
+        { value: "Google", label: "Google" },
+        { value: "Facebook", label: "Facebook" },
+        { value: "Instagram", label: "Instagram" },
+        { value: "Friend", label: "Friend" },
+        { value: "Flyer", label: "Flyer" },
+    ];
     const studentInputs = [
         { name: "firstName", placeholder: "Enter First Name", type: "text", label: "First Name" },
         { name: "lastName", placeholder: "Enter Last Name", type: "text", label: "Last Name" },
@@ -560,7 +560,11 @@ const General = () => {
                                 className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                                 onClick={handleSubmitComment}
                             >
-                                <img src="/images/icons/sent.png" alt="" />
+                                {loadingComment ? (
+                                    <Loader2 className="animate-spin w-5 h-5 text-white" />
+                                ) : (
+                                    <img src="/images/icons/sent.png" alt="" />
+                                )}
                             </button>
                         </div>
 

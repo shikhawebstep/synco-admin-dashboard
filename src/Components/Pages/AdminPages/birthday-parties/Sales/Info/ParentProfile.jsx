@@ -5,6 +5,7 @@ import Select from "react-select";
 import { useNotification } from "../../../contexts/NotificationContext";
 import { useAccountsInfo } from "../../../contexts/AccountsInfoContext";
 import { FaSave, FaEdit } from "react-icons/fa";
+import { Loader2 } from "lucide-react";
 import { showError, showSuccess, showWarning } from "../../../../../../utils/swalHelper";
 const ParentProfile = () => {
   const [editParent, setEditParent] = useState(false);
@@ -201,14 +202,14 @@ const ParentProfile = () => {
         showError(result.message || "Something went wrong.");
         return;
       }
-      showSuccess(result.message || " Comment has been  added successfully!");
+      // showSuccess(result.message || " Comment has been  added successfully!");
       setComment('');
       fetchComments();
     } catch (error) {
       console.error("Error creating member:", error);
       showError(error.message || "An error occurred while submitting the form.");
     } finally {
-      setLoading(false);
+      setLoadingComment(false);
     }
   }
   // Add parent from modal
@@ -803,11 +804,15 @@ const ParentProfile = () => {
             className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-[16px] font-semibold outline-none md:w-full w-5/12"
           />
           <button
-          disabled={loadingComment}
+            disabled={loadingComment}
             className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
             onClick={handleSubmitComment}
           >
-            <img src="/images/icons/sent.png" alt="" />
+            {loadingComment ? (
+              <Loader2 className="animate-spin w-5 h-5 text-white" />
+            ) : (
+              <img src="/images/icons/sent.png" alt="" />
+            )}
           </button>
         </div>
 

@@ -5,7 +5,7 @@ import vfsFonts from "pdfmake/build/vfs_fonts";
 
 
 import { useNotification } from '../../../contexts/NotificationContext';
-import { Check, Mail, MessageSquare, Search } from "lucide-react";
+import { Check, Mail, MessageSquare, Search, Loader2 } from "lucide-react";
 import { IoIosArrowDown } from "react-icons/io";
 import { motion } from "framer-motion";
 import { IoMdCheckmarkCircle } from "react-icons/io";
@@ -291,7 +291,7 @@ const CandidateInfo = ({ steps, setSteps }) => {
     };
 
     try {
-       setLoadingComment(true);
+      setLoadingComment(true);
 
 
       const response = await fetch(`${API_BASE_URL}/api/admin/book-membership/comment/create`, requestOptions);
@@ -313,7 +313,7 @@ const CandidateInfo = ({ steps, setSteps }) => {
       console.error("Error creating member:", error);
       showError("Network Error", error.message || "An error occurred while submitting the form.");
     } finally {
-       setLoadingComment(false);
+      setLoadingComment(false);
     }
   }
   const recruitedMode = form.status?.toLowerCase() === "recruited";
@@ -1176,7 +1176,11 @@ const CandidateInfo = ({ steps, setSteps }) => {
                 className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                 onClick={handleSubmitComment}
               >
-                <img src="/images/icons/sent.png" alt="" />
+                {loadingComment ? (
+                  <Loader2 className="animate-spin w-5 h-5 text-white" />
+                ) : (
+                  <img src="/images/icons/sent.png" alt="" />
+                )}
               </button>
             </div>
 

@@ -100,11 +100,9 @@ export default function TemplateBuilder({
     { id: "image", label: "Image", icon: <FaRegImage /> },
     { id: "btn", label: "Button", icon: <FaMousePointer /> },
     { id: "sectionGrid", label: "Section Grid", icon: <FaColumns /> },
-    { id: "socialLinks", label: "Social Links", icon: <FaShareAlt /> },
     { id: "divider", label: "Divider", icon: <FaMinus /> },
     { id: "cardRow", label: "Cards in Row", icon: <FaLayerGroup /> },
     { id: "heroSection", label: "Hero (Wavy)", icon: <FaStar /> },
-    { id: "infoBox", label: "Info Box", icon: <FaInfoCircle /> },
     { id: "footerBlock", label: "Footer", icon: <FaInfoCircle /> },
   ];
 
@@ -165,23 +163,14 @@ export default function TemplateBuilder({
       newBlock.content = "Click Here";
     } else if (type === "sectionGrid") {
       newBlock.columns = Array(columnCount).fill(null).map(() => []);
+      newBlock.style.display = "grid";
+      newBlock.style.gap = 16;
     } else if (type === "featureGrid") {
       newBlock.style.backgroundColor = "#f9f9f9";
       newBlock.style.borderRadius = 12;
       newBlock.items = [
         { label: "Name", value: "John Doe" },
         { label: "Date", value: "2024-01-01" }
-      ];
-    } else if (type === "accordion") {
-      newBlock.items = [
-        { title: "Question 1", content: "Answer 1" },
-        { title: "Question 2", content: "Answer 2" }
-      ];
-    } else if (type === "socialLinks") {
-      newBlock.style.textAlign = "center";
-      newBlock.links = [
-        { platform: "facebook", url: "https://facebook.com" },
-        { platform: "instagram", url: "https://instagram.com" }
       ];
     } else if (type === "divider") {
       newBlock.style.padding = 20;
@@ -194,6 +183,18 @@ export default function TemplateBuilder({
         { id: crypto.randomUUID(), title: "Card 1", description: "Description 1", url: "", style: { backgroundColor: "#ffffff", borderRadius: 12, padding: 20 } },
         { id: crypto.randomUUID(), title: "Card 2", description: "Description 2", url: "", style: { backgroundColor: "#ffffff", borderRadius: 12, padding: 20 } }
       ];
+    } else if (type === "heroSection") {
+      newBlock.style.backgroundColor = "#237FEA";
+      newBlock.style.textColor = "#ffffff";
+      newBlock.style.textAlign = "left";
+      newBlock.style.padding = 60;
+      newBlock.title = "Welcome to Samba Soccer";
+      newBlock.subtitle = "Where kids learn to play with flair and passion.";
+      newBlock.buttonText = "Join Us Now";
+      newBlock.link = "#";
+      newBlock.titleStyle = { fontSize: 36, fontWeight: "600", textColor: "#ffffff" };
+      newBlock.subtitleStyle = { fontSize: 18, textColor: "#ffffff", opacity: 0.9 };
+      newBlock.buttonStyle = { backgroundColor: "#FBBF24", textColor: "#000000", borderRadius: 30 };
     }
 
     setBlocks((prev) => [...prev, newBlock]);

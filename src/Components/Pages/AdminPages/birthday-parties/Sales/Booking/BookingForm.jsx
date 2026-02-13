@@ -6,7 +6,7 @@ import { Check } from "lucide-react";
 // import Loader from '../../../../contexts/Loader';
 import { format, parseISO } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Info, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Info, CheckCircle2, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 
 import { evaluate } from 'mathjs';
 
@@ -966,8 +966,9 @@ const BirthdayBookingForm = () => {
       fetchComments();
     } catch (error) {
       console.error("Error creating member:", error);
-      setLoadingComment(false);
       showError("Network Error", error.message || "An error occurred while submitting the form.");
+    } finally {
+      setLoadingComment(false);
     }
   }
   // Function to convert HTML to plain text while preserving list structure
@@ -1947,7 +1948,11 @@ const BirthdayBookingForm = () => {
                   className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                   onClick={handleSubmitComment}
                 >
-                  <img src="/images/icons/sent.png" alt="" />
+                  {loadingComment ? (
+                    <Loader2 className="animate-spin w-5 h-5 text-white" />
+                  ) : (
+                    <img src="/images/icons/sent.png" alt="" />
+                  )}
                 </button>
               </div>
 

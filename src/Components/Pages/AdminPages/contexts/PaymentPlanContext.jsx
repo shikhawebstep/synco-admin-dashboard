@@ -242,13 +242,15 @@ export const PaymentPlanContextProvider = ({ children }) => {
     if (!token) return;
     setLoading(true);
     try {
-      await fetch(`${API_BASE_URL}/api/admin/payment-group/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/payment-group/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
       await fetchGroups();
+      showSuccess("Group deleted successfully!" || response.message);
     } catch (err) {
       console.error("Failed to delete group:", err);
+      showError("Failed to delete group!" || err.message);
     } finally {
       setLoading(false);
     }

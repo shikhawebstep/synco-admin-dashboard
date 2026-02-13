@@ -4,7 +4,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
-import { Search } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNotification } from "../../../contexts/NotificationContext";
 import { useMembers } from "../../../contexts/MemberContext";
@@ -224,7 +224,7 @@ const General = () => {
                 return;
             }
 
-            showSuccess("Comment Created", result.message || "Comment has been added successfully!");
+            //showSuccess("Comment Created", result.message || "Comment has been added successfully!");
 
 
 
@@ -267,12 +267,12 @@ const General = () => {
 
 
     const hearOptions = [
-    { value: "Google", label: "Google" },
-    { value: "Facebook", label: "Facebook" },
-    { value: "Instagram", label: "Instagram" },
-    { value: "Friend", label: "Friend" },
-    { value: "Flyer", label: "Flyer" },
-  ];
+        { value: "Google", label: "Google" },
+        { value: "Facebook", label: "Facebook" },
+        { value: "Instagram", label: "Instagram" },
+        { value: "Friend", label: "Friend" },
+        { value: "Flyer", label: "Flyer" },
+    ];
     const studentInputs = [
         { name: "firstName", placeholder: "Enter First Name", type: "text", label: "First Name" },
         { name: "lastName", placeholder: "Enter Last Name", type: "text", label: "Last Name" },
@@ -558,11 +558,16 @@ const General = () => {
                                 className="flex-1 border border-gray-200 rounded-xl px-4 py-3 text-[16px] font-semibold outline-none md:w-full w-5/12"
                             />
                             <button
+                                type="button"
                                 disabled={loadingComment}
                                 className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
                                 onClick={handleSubmitComment}
                             >
-                                <img src="/images/icons/sent.png" alt="" />
+                                {loadingComment ? (
+                                    <Loader2 className="animate-spin w-5 h-5 text-white" />
+                                ) : (
+                                    <img src="/images/icons/sent.png" alt="" />
+                                )}
                             </button>
                         </div>
 

@@ -133,6 +133,10 @@ export default function PreviewModal({ mode_of_communication, title, category, t
             card.url = await checkAndReplace(card.url, "card_row_image");
           }
         }
+
+        if (block.type === "footerBlock" && block.logoUrl) {
+          block.logoUrl = await checkAndReplace(block.logoUrl, "footer_logo");
+        }
       };
 
       // extract all images
@@ -225,8 +229,15 @@ export default function PreviewModal({ mode_of_communication, title, category, t
         }
 
         if (block.type === "heroSection") {
-          block.style.backgroundImage = await checkAndReplace(block.style?.backgroundImage, "hero_bg");
-          // also check base property if used
+          // check style.backgroundImage
+          if (block.style?.backgroundImage) {
+            const raw = block.style.backgroundImage.replace(/url\(["']?|["']?\)/g, '');
+            if (raw.startsWith("blob")) {
+              const ph = await checkAndReplace(raw, "hero_style_bg");
+              block.style.backgroundImage = `url("${ph}")`;
+            }
+          }
+          // check direct property if it exists
           if (block.backgroundImage) {
             block.backgroundImage = await checkAndReplace(block.backgroundImage, "hero_bg_prop");
           }
@@ -236,6 +247,10 @@ export default function PreviewModal({ mode_of_communication, title, category, t
           for (const card of block.cards) {
             card.url = await checkAndReplace(card.url, "card_row_image");
           }
+        }
+
+        if (block.type === "footerBlock" && block.logoUrl) {
+          block.logoUrl = await checkAndReplace(block.logoUrl, "footer_logo");
         }
       };
 

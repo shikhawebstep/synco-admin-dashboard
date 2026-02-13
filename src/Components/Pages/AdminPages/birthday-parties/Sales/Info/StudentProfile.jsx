@@ -5,6 +5,7 @@ import Select from "react-select";
 import { FaPlus } from "react-icons/fa";
 import "react-datepicker/dist/react-datepicker.css";
 import { RxCross2 } from "react-icons/rx";
+import { Loader2 } from "lucide-react";
 import { useAccountsInfo } from "../../../contexts/AccountsInfoContext";
 import { FaSave, FaEdit } from "react-icons/fa";
 import { useNotification } from "../../../contexts/NotificationContext";
@@ -155,7 +156,7 @@ const StudentProfile = () => {
         return;
       }
 
-      showSuccess(result.message || " Comment has been  added successfully!");
+      // showSuccess(result.message || " Comment has been  added successfully!");
 
 
 
@@ -550,7 +551,11 @@ const StudentProfile = () => {
             className="bg-[#237FEA] p-3 rounded-xl text-white hover:bg-blue-600"
             onClick={handleSubmitComment}
           >
-            <img src="/images/icons/sent.png" alt="" />
+            {loadingComment ? (
+              <Loader2 className="animate-spin w-5 h-5 text-white" />
+            ) : (
+              <img src="/images/icons/sent.png" alt="" />
+            )}
           </button>
         </div>
 
