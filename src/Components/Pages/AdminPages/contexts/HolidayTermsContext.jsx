@@ -288,8 +288,7 @@ export const HolidayTermsProvider = ({ children }) => {
       if (!token) return;
 
       // Loading popup
-      showLoading("Deleting Holiday Camp Date...", "Please wait");
-
+setLoading(true)
       try {
         const response = await fetch(
           `${API_BASE_URL}/api/admin/holiday/campDate/delete/${id}`,
@@ -319,6 +318,9 @@ export const HolidayTermsProvider = ({ children }) => {
         console.error("Delete failed:", err);
 
         showError("Failed to Delete Holiday Camp Date", err.message || "Something went wrong. Please try again.");
+      }
+      finally{
+  setLoading(false)
       }
     },
     [token, fetchHolidayCampDate]

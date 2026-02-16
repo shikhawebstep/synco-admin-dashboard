@@ -76,6 +76,34 @@ export default function TemplateBuilder({
       prev.map((b) => {
         if (b.id !== selectedBlockId) return b;
 
+        // ✅ Handle Nested Child Updates (from AdvancedStyleControls)
+        if (key === "childUpdate") {
+          const { childId, key: childKey, value: childValue, rootKey: childRootKey } = value;
+
+          if (b.type === "sectionGrid" && Array.isArray(b.columns)) {
+            const newColumns = b.columns.map(col =>
+              col.map(child => {
+                if (child.id === childId) {
+                  // Apply update to the specific child
+                  if (childRootKey === true) return { ...child, [childKey]: childValue };
+
+                  if (typeof childRootKey === 'string') {
+                    return {
+                      ...child,
+                      [childRootKey]: { ...(child[childRootKey] || {}), [childKey]: childValue }
+                    };
+                  }
+
+                  return { ...child, style: { ...(child.style || {}), [childKey]: childValue } };
+                }
+                return child;
+              })
+            );
+            return { ...b, columns: newColumns };
+          }
+          return b;
+        }
+
         // If rootKey is true, update the property on the block root
         if (rootKey === true) return { ...b, [key]: value };
 
@@ -101,8 +129,10 @@ export default function TemplateBuilder({
     { id: "btn", label: "Button", icon: <FaMousePointer /> },
     { id: "sectionGrid", label: "Section Grid", icon: <FaColumns /> },
     { id: "divider", label: "Divider", icon: <FaMinus /> },
-    { id: "cardRow", label: "Cards in Row", icon: <FaLayerGroup /> },
+    { id: "cardRow", label: "Cards", icon: <FaLayerGroup /> },
+    { id: "infoBox", label: "Info Box", icon: <FaInfoCircle /> },
     { id: "heroSection", label: "Hero (Wavy)", icon: <FaStar /> },
+    { id: "multipleInfoBox", label: "Multi-Info Cards", icon: <FaLayerGroup /> },
     { id: "footerBlock", label: "Footer", icon: <FaInfoCircle /> },
   ];
 
@@ -195,6 +225,45 @@ export default function TemplateBuilder({
       newBlock.titleStyle = { fontSize: 36, fontWeight: "600", textColor: "#ffffff" };
       newBlock.subtitleStyle = { fontSize: 18, textColor: "#ffffff", opacity: 0.9 };
       newBlock.buttonStyle = { backgroundColor: "#FBBF24", textColor: "#000000", borderRadius: 30 };
+    } else if (type === "infoBox") {
+      newBlock.style.backgroundColor = "#eaf3ff";
+      newBlock.style.borderRadius = 12;
+      newBlock.style.padding = 20;
+      newBlock.style.flexDirection = "column";
+      newBlock.style.gap = 16;
+      newBlock.items = [
+        { label: "Label 1", value: "Value 1" },
+        { label: "Label 2", value: "Value 2" }
+      ];
+    } else if (type === "multipleInfoBox") {
+      newBlock.style.display = "grid";
+      newBlock.style.columns = 2;
+      newBlock.style.gap = 20;
+      newBlock.boxStyle = {
+        backgroundColor: "#ffffff",
+        borderRadius: 12,
+        padding: 20,
+        boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+        border: "1px solid #eee"
+      };
+      newBlock.boxes = [
+        {
+          id: crypto.randomUUID(),
+          title: "Box 1",
+          items: [
+            { label: "Label 1", value: "Value 1" },
+            { label: "Label 2", value: "Value 2" }
+          ]
+        },
+        {
+          id: crypto.randomUUID(),
+          title: "Box 2",
+          items: [
+            { label: "Label A", value: "Value A" },
+            { label: "Label B", value: "Value B" }
+          ]
+        }
+      ];
     }
 
     setBlocks((prev) => [...prev, newBlock]);
@@ -231,6 +300,15 @@ export default function TemplateBuilder({
         blk.cards = blk.cards.map((card) => ({
           ...card,
           id: crypto.randomUUID()
+        }));
+      }
+
+      // multipleInfoBox → regenerate child box IDs
+      if (blk.type === "multipleInfoBox" && Array.isArray(blk.boxes)) {
+        blk.boxes = blk.boxes.map((box) => ({
+          ...box,
+          id: crypto.randomUUID(),
+          items: (box.items || []).map(item => ({ ...item }))
         }));
       }
     };

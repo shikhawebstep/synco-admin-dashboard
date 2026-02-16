@@ -18,62 +18,113 @@ export default function SettingList() {
 
     useEffect(() => {
         const load = async () => {
-            const res = await fetchCommunicationTemplate();
+            try {
+                await fetchCommunicationTemplate?.();
+            } catch (error) {
+                console.error("Failed to load templates:", error);
+            }
         };
+
         load();
     }, []);
 
-    // Filter data based on active tab
-    const modeData = activeTab === "Email" ? apiTemplates.email : apiTemplates.text;
 
-    const filteredData = modeData?.filter(section =>
-        section.template_category.toLowerCase().includes(searchText.toLowerCase()) ||
-        section.templates.some(t => t.title.toLowerCase().includes(searchText.toLowerCase()))
-    );
+    // Filter data based on active tab
+    const modeData =
+        activeTab === "Email"
+            ? apiTemplates?.email ?? []
+            : apiTemplates?.text ?? [];
+    const filteredData = (modeData ?? []).filter((section) => {
+        const search = searchText?.toLowerCase?.() ?? "";
+
+        const categoryMatch =
+            section?.template_category?.toLowerCase?.()?.includes(search);
+
+        const templateMatch =
+            section?.templates?.some(
+                (t) => t?.title?.toLowerCase?.()?.includes(search)
+            ) ?? false;
+
+        return categoryMatch || templateMatch;
+    });
+
 
     const toggleSection = (sectionName) => {
-        setOpenSection(prev => ({ ...prev, [sectionName]: !prev[sectionName] }));
-    };
+        if (!sectionName) return;
 
+        setOpenSection((prev) => ({
+            ...prev,
+            [sectionName]: !prev?.[sectionName],
+        }));
+    };
     const selectTemplate = (template) => {
+        if (!template) return;
+
         setSelectedTemplate(template);
 
-        if (template.mode_of_communication === "email" && template.content) {
+        if (
+            template?.mode_of_communication === "email" &&
+            template?.content
+        ) {
             try {
-                const contentObj = typeof template.content === "string" ? JSON.parse(template.content) : template.content;
+                const contentObj =
+                    typeof template.content === "string"
+                        ? JSON.parse(template.content)
+                        : template.content ?? {};
+
                 setPreviewData({
-                    subject: contentObj.subject || "",
-                    blocks: contentObj.blocks || [],
+                    subject: contentObj?.subject ?? "",
+                    blocks: contentObj?.blocks ?? [],
                 });
             } catch (err) {
                 console.error("Invalid content JSON", err);
                 setPreviewData({ subject: "", blocks: [] });
             }
         } else {
-            setPreviewData({ subject: "", blocks: [{ type: "text", content: template.content.blocks[0].content }] });
+            setPreviewData({
+                subject: "",
+                blocks: [
+                    {
+                        type: "text",
+                        content:
+                            template?.content?.blocks?.[0]?.content ??
+                            template?.content ??
+                            "",
+                    },
+                ],
+            });
         }
     };
 
     const handleEdit = (id, level) => {
+        if (!id) return;
+
         console.log("Edit Clicked, ID:", id);
-        navigate(`/templates/create?id=${id}&level=${level}`);
+        navigate(`/templates/create?id=${id}&level=${level ?? ""}`);
     };
 
     const handleDelete = (id) => {
+        if (!id) return;
+
         console.log("Delete Clicked, ID:", id);
-        showConfirm("Are you sure?", "You won't be able to revert this!", "warning").then((result) => {
-            if (result.isConfirmed) {
-                deleteCommunicationTemplate(id); // ✅ delete only after confirm
-                showSuccess("Deleted!", "Your template has been deleted.");
+
+        showConfirm(
+            "Are you sure?",
+            "You won't be able to revert this!",
+            "warning"
+        )?.then((result) => {
+            if (result?.isConfirmed) {
+                deleteCommunicationTemplate?.(id);
+                showSuccess?.("Deleted!", "Your template has been deleted.");
             } else {
-                showError(
+                showError?.(
                     "Cancelled",
                     "Your template is safe 🙂"
                 );
             }
         });
-
     };
+
     if (loading) {
         return <Loader />
     }

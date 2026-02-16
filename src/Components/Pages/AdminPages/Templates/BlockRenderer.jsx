@@ -35,6 +35,7 @@ const convertHtmlToBlocks = (html) => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
 
+
   const extractStyles = (node) => {
     const style = {};
     if (node.style) {
@@ -63,6 +64,9 @@ const convertHtmlToBlocks = (html) => {
       if (s.display) style.display = s.display;
       if (s.flexDirection) style.flexDirection = s.flexDirection;
       if (s.gap) style.gap = parseInt(s.gap) || 0;
+      if (s.gridTemplateColumns) style.gridTemplateColumns = s.gridTemplateColumns;
+      if (s.alignItems) style.alignItems = s.alignItems;
+      if (s.justifyContent) style.justifyContent = s.justifyContent;
     }
     return style;
   };
@@ -101,11 +105,490 @@ const convertHtmlToBlocks = (html) => {
     if (node.nodeType !== Node.ELEMENT_NODE) return null;
 
     const tag = node.tagName.toLowerCase();
+    const nodeStyle = extractStyles(node);
+
+    // 0. Detect Block Types by Class Name
+    if (tag !== "style" && tag !== "script") {
+      const classes = Array.from(node.classList);
+      // Find class starting with block- but ignore block-component/id and UUIDs (8-4-4-4-12 hex)
+      const blockTypeClass = classes.find(c => c.startsWith("block-") && !c.startsWith("block-component") && !c.startsWith("block-id-") && !/block-[0-9a-f]{8}-/.test(c));
+
+      if (blockTypeClass) {
+        const type = blockTypeClass.replace("block-", "");
+
+        // 1. Heading
+        if (type === "heading") {
+          return createBlock("heading", {
+            content: node.innerText,
+            style: { ...nodeStyle, fontSize: parseInt(nodeStyle.fontSize) || 24, fontWeight: "bold" }
+          });
+        }
+
+        // 2. Text
+        if (type === "text") {
+          return createBlock("text", {
+            content: node.innerHTML,
+            style: { fontSize: 16, ...nodeStyle }
+          });
+        }
+
+        // 3. Image
+        if (type === "image") {
+          const img = node.querySelector("img");
+          return createBlock("image", {
+            url: img ? img.getAttribute("src") : "",
+            style: { ...nodeStyle, width: "100%" }
+          });
+        }
+
+        // 4. Section Grid
+        if (type === "sectionGrid") {
+          // Try to find columns
+          // Structure: .block-sectionGrid > .wrapper > .column*
+          // OR if flattened: .block-sectionGrid > .column* (if no wrapper)
+          let columns = [];
+          const children = Array.from(node.children);
+
+          // Check if first child is a wrapper (display flex/grid)
+          const wrapper = children.find(c => c.style.display === "flex" || c.style.display === "grid");
+
+          if (wrapper) {
+            Array.from(wrapper.children).forEach(col => {
+              columns.push(processNodeList(col.childNodes));
+            });
+          } else {
+            // Fallback: assume direct children are columns if they look like it, or just wrap content
+            if (children.length > 0) {
+              // If direct children are divs, treat as columns?
+              children.forEach(col => {
+                columns.push(processNodeList(col.childNodes));
+              });
+            }
+          }
+
+          if (columns.length > 0) {
+            return createBlock("sectionGrid", {
+              columns,
+              style: { ...nodeStyle, display: "grid", gap: 20 }
+            });
+          }
+        }
+
+        // 5. Button
+        if (type === "btn") {
+          const btn = node.querySelector("button, a.btn") || node;
+          return createBlock("btn", {
+            content: btn.innerText,
+            url: btn.getAttribute("href") || "#",
+            style: { ...nodeStyle, ...extractStyles(btn) }
+          });
+        }
+
+        // 6. Card Row
+        if (type === "cardRow") {
+          const cards = [];
+          Array.from(node.children).forEach(child => {
+            const card = {
+              id: crypto.randomUUID(),
+              title: "Card Title",
+              description: "",
+              url: "",
+              link: "",
+              style: extractStyles(child)
+            };
+
+            const img = child.querySelector("img");
+            if (img) card.url = img.getAttribute("src");
+
+            const title = child.querySelector("h1, h2, h3, h4, h5, strong") ||
+              (child.querySelector(".font-bold") && child.querySelector("div")) || // Fallback for simple divs
+              child.querySelector("div"); // Ultimate fallback
+
+            // Refined Title Logic: Try to find the most likely title element
+            if (child.querySelector("h4")) card.title = child.querySelector("h4").innerText;
+            else if (child.querySelector("strong")) card.title = child.querySelector("strong").innerText;
+            else if (title && title.innerText.length < 50) card.title = title.innerText;
+
+            const desc = child.querySelector("p");
+            if (desc) card.description = desc.innerText;
+            else {
+              // Try to find a div that is NOT the title
+              const divs = Array.from(child.querySelectorAll("div"));
+              const textDiv = divs.find(d => d.innerText !== card.title && d.innerText.length > 5);
+              if (textDiv) card.description = textDiv.innerText;
+            }
+
+            const link = child.querySelector("a");
+            if (link) card.link = link.getAttribute("href");
+
+            cards.push(card);
+          });
+
+          if (cards.length > 0) {
+            return createBlock("cardRow", {
+              cards,
+              style: { ...nodeStyle, display: "flex", gap: 20, columns: Math.min(cards.length, 4) }
+            });
+          }
+        }
+
+        // Fallback for other known types if content is simple
+
+        // 7. InfoBox
+        if (type === "infoBox") {
+          const items = [];
+
+          // Try to find items by looking for pairs of Label/Value or just text
+          // In the snippet, it's: div > div (flex col) > div (Label) + div (Value)
+          // Try to find items by looking for pairs of Label/Value or just text
+          // In the snippet, it's: div > div (flex col) > div (Label) + div (Value)
+          // FIX: Don't use .block-infoBox selector as it might be the node itself.
+          // Look for nested divs that act as columns.
+          let itemDivs = [];
+          // If the node has a wrapper div, use that
+          if (node.children.length === 1 && node.children[0].tagName === "DIV") {
+            itemDivs = Array.from(node.children[0].children);
+          } else {
+            itemDivs = Array.from(node.children);
+          }
+
+          // Filter to only those that look like columns (have children)
+          itemDivs = itemDivs.filter(d => d.tagName === "DIV" && d.children.length > 0);
+
+          // Check if these "columns" have the specific column class or structure
+          // Or just proceed with the assumption they might be columns if they contain multiple pairs
+          const hasMultiplePairs = itemDivs.some(d => d.children.length >= 4); // At least 2 pairs
+
+          if (hasMultiplePairs) {
+            itemDivs.forEach(div => {
+              // Inside each column, there are rows of Label/Value pairs?
+              // Snippet: 4 columns.
+              // Inside column: multiple label/value pairs?
+              // Snippet shows: div (col) -> div (Label), div (Value), div (Label), div (Value)...
+
+              // Let's iterate children of the column
+              const children = Array.from(div.children);
+              for (let i = 0; i < children.length; i += 2) {
+                const label = children[i]?.innerText;
+                const value = children[i + 1]?.innerHTML;
+                if (label && value) {
+                  items.push({ label, value });
+                }
+              }
+            });
+          } else {
+            // TRY GENERIC GRID/ROW DETECTION
+            // If the node has a single child that is a flex/grid container, use that.
+            // Or if the node itself is a flex/grid container, use its children.
+            const container = (node.children.length === 1 && (node.children[0].style.display === 'flex' || node.children[0].style.display === 'grid' || node.children[0].className.includes('grid') || node.children[0].className.includes('flex')))
+              ? node.children[0]
+              : node;
+
+            const children = Array.from(container.children);
+            // If children look like columns (contain multiple items), iterate them
+            // Heuristic: if a child has multiple div children, treat as column
+            // If a child has only 2 div children (or text + div), treat as Item
+
+            children.forEach(child => {
+              const grandChildren = Array.from(child.children);
+              if (grandChildren.length > 2) {
+                // Child is likely a column containing items
+                // Iterate pairs
+                for (let i = 0; i < grandChildren.length; i += 2) {
+                  const label = grandChildren[i]?.innerText;
+                  const value = grandChildren[i + 1]?.innerHTML;
+                  if (label && value) items.push({ label, value });
+                }
+              } else if (grandChildren.length === 2) {
+                // Child is likely an Item itself (Label + Value)
+                const label = grandChildren[0]?.innerText;
+                const value = grandChildren[1]?.innerHTML;
+                if (label && value) items.push({ label, value });
+              }
+            });
+          }
+
+          if (items.length === 0) {
+            const potentialLabels = Array.from(node.querySelectorAll("div, strong, b, h4, h5, h6")).filter(el => {
+              const style = extractStyles(el);
+              return style.fontWeight === "bold" || parseInt(style.fontWeight) >= 600 || el.tagName === "STRONG" || el.tagName === "B";
+            });
+
+            potentialLabels.forEach(labelEl => {
+              // Avoid using values that are too long as labels
+              if (labelEl.innerText.length > 100) return;
+
+              let valueEl = labelEl.nextElementSibling;
+              // If next sibling is a BR, skip it
+              if (valueEl && valueEl.tagName === "BR") valueEl = valueEl.nextElementSibling;
+
+              if (valueEl) {
+                items.push({ label: labelEl.innerText, value: valueEl.innerHTML });
+              }
+            });
+
+            // If still no items, try dl/dt/dd
+            if (items.length === 0) {
+              const dts = Array.from(node.querySelectorAll("dt"));
+              dts.forEach(dt => {
+                const dd = dt.nextElementSibling;
+                if (dd && dd.tagName === "DD") {
+                  items.push({ label: dt.innerText, value: dd.innerHTML });
+                }
+              });
+            }
+          }
+
+          if (items.length > 0) {
+            return createBlock("infoBox", {
+              items,
+              style: { ...nodeStyle, display: "flex", flexDirection: "row", gap: 16, flexWrap: "wrap" }
+            });
+          }
+          // If no items found, return default or empty?
+          // Better to return empty infoBox than sectionGrid
+          return createBlock("infoBox", {
+            items: [{ label: "Label", value: "Value" }],
+            style: { ...nodeStyle }
+          });
+        }
+
+        // 8. Multiple Info Box
+        if (type === "multipleInfoBox") {
+          const boxes = [];
+          // Expecting structure: div (box style) > h4 (title) + div (grid items)
+          const boxNodes = Array.from(node.children);
+
+          boxNodes.forEach(boxNode => {
+            // Check if this node looks like a box (has style, padding, etc)
+            // Or just check if it has children
+            if (boxNode.children.length === 0) return;
+
+            const box = {
+              id: crypto.randomUUID(),
+              title: "Info Box",
+              items: []
+            };
+
+            // Title
+            const titleEl = boxNode.querySelector("h4, h3, strong");
+            if (titleEl) box.title = titleEl.innerText;
+
+            // Items
+            // Usually in a grid container
+            const gridContainer = boxNode.querySelector("div[style*='grid']") || boxNode.querySelector("div[class*='grid']");
+            const itemsContainer = gridContainer || boxNode;
+
+            // Items are usually cols -> label/value pairs
+            // Based on user snippet: block-multipleInfoBox > div (box) > div.grid > div.gap-1 (item) > Label + Value
+            // FIX: Be more permissive. Iterate all children of the grid/items container.
+            const itemNodes = Array.from(itemsContainer.children);
+
+            if (itemNodes.length > 0) {
+              itemNodes.forEach(itemNode => {
+                // Check if it has 2 children (Label, Value)
+                // Or just text (Label) + parsing innerHTML (Value) ?
+                // If itemNode has children, assume first is label, second is value.
+                if (itemNode.children.length >= 1) {
+                  const label = itemNode.children[0]?.innerText;
+                  const value = itemNode.children[1]?.innerHTML || "";
+                  if (label) {
+                    box.items.push({ label, value });
+                  }
+                }
+              });
+            } else {
+              // Fallback: try to find bold labels followed by values
+              const boldDivs = Array.from(boxNode.querySelectorAll("div")).filter(d => d.style.fontWeight == "700" || d.style.fontWeight == "bold");
+              boldDivs.forEach(labelDiv => {
+                const valueDiv = labelDiv.nextElementSibling;
+                if (valueDiv) {
+                  box.items.push({ label: labelDiv.innerText, value: valueDiv.innerHTML });
+                }
+              });
+            }
+            boxes.push(box);
+          });
+
+          if (boxes.length > 0) {
+            return createBlock("multipleInfoBox", {
+              boxes,
+              style: { ...nodeStyle, display: "grid", gap: 20, columns: Math.min(boxes.length, 2) }
+            });
+          }
+        }
+
+        // 9. Footer Block
+        if (type === "footerBlock") {
+          const footerData = {
+            shopText: "Shop Online",
+            shopLink: "#",
+            logoUrl: "",
+            bottomBarStyle: {}
+          };
+
+          const img = node.querySelector("img");
+          if (img) footerData.logoUrl = img.getAttribute("src");
+
+          // Shop Link
+          const shopLinkEl = node.querySelector("a");
+          if (shopLinkEl) {
+            footerData.shopLink = shopLinkEl.getAttribute("href");
+            footerData.shopText = shopLinkEl.innerText.trim();
+          }
+
+          // Bottom Bar (Copyright)
+          // Find div with copyright symbol
+          const allDivs = Array.from(node.querySelectorAll("div"));
+          const copyrightDiv = allDivs.find(d => d.innerText.includes("©") || d.innerText.toLowerCase().includes("copyright"));
+
+          if (copyrightDiv) {
+            const s = extractStyles(copyrightDiv);
+            footerData.bottomBarStyle = {
+              backgroundColor: s.backgroundColor,
+              borderColor: s.borderTopColor || s.borderColor || "rgba(255,255,255,0.1)",
+              borderTop: copyrightDiv.style.borderTop || "1px solid",
+              fontSize: s.fontSize || 12,
+              textColor: s.textColor || "rgba(255,255,255,0.7)"
+            };
+          }
+
+          return createBlock("footerBlock", {
+            ...footerData,
+            style: { ...nodeStyle }
+          });
+        }
+
+        // 10. Hero Section
+        if (type === "heroSection") {
+          const heroData = {
+            title: "Hero Title",
+            subtitle: "",
+            buttonText: "Click Me",
+            link: "#",
+            titleStyle: {},
+            subtitleStyle: {},
+            buttonStyle: {}
+          };
+
+          const h2 = node.querySelector("h2, h1");
+          if (h2) {
+            heroData.title = h2.innerText;
+            heroData.titleStyle = extractStyles(h2);
+          }
+
+          const p = node.querySelector("p");
+          if (p) {
+            heroData.subtitle = p.innerText;
+            heroData.subtitleStyle = extractStyles(p);
+          }
+
+          const btn = node.querySelector("a, button");
+          if (btn) {
+            heroData.buttonText = btn.innerText;
+            heroData.link = btn.getAttribute("href");
+            heroData.buttonStyle = extractStyles(btn);
+          }
+
+          return createBlock("heroSection", {
+            ...heroData,
+            style: { ...nodeStyle }
+          });
+        }
+
+        // 11. Note Section
+        if (type === "noteSection") {
+          const noteData = {
+            heading: "Note Heading",
+            headingStyle: {},
+            rows: []
+          };
+
+          const h2 = node.querySelector("h2, h3");
+          if (h2) {
+            noteData.heading = h2.innerText;
+            noteData.headingStyle = extractStyles(h2);
+          }
+
+          // Rows? Note section usually has rows of boxes
+          // structure: note section > div (row) > div (box)
+          // Let's assume direct children (excluding heading) are rows?
+          // Or look for grid/flex containers
+          const potentialRows = Array.from(node.children).filter(c => c.tagName !== "H2" && c.tagName !== "H3");
+
+          potentialRows.forEach(rowNode => {
+            const row = {
+              id: crypto.randomUUID(),
+              boxes: []
+            };
+            // Boxes in row
+            Array.from(rowNode.children).forEach(boxNode => {
+              // Parse box (similar to infoBox or multipleInfoBox box)
+              const box = {
+                id: crypto.randomUUID(),
+                type: "infoBox",
+                items: [],
+                style: extractStyles(boxNode)
+              };
+
+              // Extract items from box
+              const boldDivs = Array.from(boxNode.querySelectorAll("div")).filter(d => d.style.fontWeight == "800" || d.style.fontWeight == "bold");
+              boldDivs.forEach(labelDiv => {
+                const valueDiv = labelDiv.nextElementSibling;
+                if (valueDiv) {
+                  box.items.push({ label: labelDiv.innerText, value: valueDiv.innerHTML });
+                }
+              });
+
+              if (box.items.length === 0) {
+                // Try simple text content
+                box.items.push({ label: "Info", value: boxNode.innerText });
+              }
+
+              row.boxes.push(box);
+            });
+            if (row.boxes.length > 0) noteData.rows.push(row);
+          });
+
+          return createBlock("noteSection", {
+            ...noteData,
+            style: { ...nodeStyle }
+          });
+        }
+
+        // These are complex to reverse-engineer perfectly without specific logic
+        // For now, let generic logic specific to them below handle (or add later if needed)
+        // But if we return nothing here, it falls through to generic parsing which might be safer
+        // unless we want to force the type.
+        // Let's NOT return here for complex types yet to avoid empty blocks.
+      }
+    }
+
+
+    if (node.classList.contains("heading")) {
+      return createBlock("heading", {
+        content: node.innerText,
+        style: {
+          ...nodeStyle,
+          fontSize: nodeStyle.fontSize || 24,
+          fontWeight: "bold"
+        }
+      });
+    }
+    if (node.classList.contains("text")) {
+      // Parse inner HTML to keep formatting but treat as single text block
+      return createBlock("text", {
+        content: node.innerHTML,
+        style: { fontSize: 16, ...nodeStyle }
+      });
+    }
+
+
+
+
 
     // 0. Skip style and script tags (Prevents CSS showing as text)
     if (tag === "style" || tag === "script") return null;
-
-    const nodeStyle = extractStyles(node);
 
     // 1. Footer Detection
     if (tag === "footer" || node.classList.contains("footer-section")) {
@@ -210,8 +693,14 @@ const convertHtmlToBlocks = (html) => {
       if (grids.length > 0) return grids;
     }
 
-    // 2. Handle Flex / Row Divs / Card Rows
-    if (tag === "div" && (node.style.display === "flex" || node.classList.contains("row") || node.classList.contains("card-row"))) {
+    // 2. Handle Flex / Row Divs / Card Rows / Grid Rows
+    if (tag === "div" && (
+      node.style.display === "flex" ||
+      node.classList.contains("row") ||
+      node.classList.contains("card-row") ||
+      node.classList.contains("grid-row") ||
+      node.classList.contains("section-grid")
+    )) {
       const columns = [];
       const children = Array.from(node.children);
       children.forEach(child => {
@@ -359,10 +848,11 @@ const convertHtmlToBlocks = (html) => {
     return processNodeList(node.childNodes);
   };
 
+
   return processNodeList(doc.body.childNodes);
 };
 
-const VariableTextarea = ({ value, onChange, className, placeholder, style }) => {
+const VariableTextarea = ({ value, onChange, className, placeholder, style, showVariables = true }) => {
   const textareaRef = useRef(null);
 
   const insertVariable = (variable) => {
@@ -386,18 +876,20 @@ const VariableTextarea = ({ value, onChange, className, placeholder, style }) =>
 
   return (
     <div className="relative group/vars">
-      <div className="absolute left-10 -top-7 opacity-0 group-hover/vars:opacity-100 transition-opacity bg-white border border-gray-200 shadow-lg rounded-lg flex gap-1 p-1 z-50">
-        {VARIABLE_OPTIONS.map(v => (
-          <button
-            key={v.value}
-            onClick={() => insertVariable(v.value)}
-            className="text-[10px] px-2 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded"
-            title={`Insert ${v.label}`}
-          >
-            {v.value}
-          </button>
-        ))}
-      </div>
+      {showVariables && (
+        <div className="absolute left-10 -top-7 opacity-0 group-hover/vars:opacity-100 transition-opacity bg-white border border-gray-200 shadow-lg rounded-lg flex gap-1 p-1 z-50">
+          {VARIABLE_OPTIONS.map(v => (
+            <button
+              key={v.value}
+              onClick={() => insertVariable(v.value)}
+              className="text-[10px] px-2 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded"
+              title={`Insert ${v.label}`}
+            >
+              {v.value}
+            </button>
+          ))}
+        </div>
+      )}
       <textarea
         ref={textareaRef}
         className={className}
@@ -535,6 +1027,9 @@ const getCommonStyles = (b) => {
     zIndex: s.zIndex,
     objectFit: s.objectFit || "fill",
 
+    // Grid support
+    gridTemplateColumns: s.gridTemplateColumns || (s.columns && s.columns !== "auto" ? `repeat(${s.columns}, minmax(0, 1fr))` : undefined),
+
     // Typography
     fontFamily: s.fontFamily,
     fontSize: parseUnit(s.fontSize),
@@ -559,12 +1054,12 @@ const CustomHTMLRenderer = ({ block, update, readOnly, isSelected, onSelect, onC
   }, [block.content, editMode]);
 
   if (readOnly) {
-    return <div style={{ ...getCommonStyles(block), overflow: 'hidden' }} dangerouslySetInnerHTML={{ __html: block.content }} />
+    return <div className={`block-component block-${block.type} block-${block.id}`} style={{ ...getCommonStyles(block), overflow: 'hidden' }} dangerouslySetInnerHTML={{ __html: block.content }} />
   }
 
   return (
     <div
-      className={`relative group ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+      className={`relative group ${isSelected ? "ring-2 ring-blue-500" : ""} block-component block-${block.type} block-${block.id}`}
       onClick={onSelect}
     >
       {editMode ? (
@@ -643,8 +1138,48 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
   const [openSection, setOpenSection] = useState("typography");
   const [activeColIndex, setActiveColIndex] = useState(0);
 
+  // ✅ Handle Nested Selection (e.g., InfoBox inside Grid)
+  let targetBlock = block;
+  let isNested = false;
+
+  if (block.type === "sectionGrid" && block.selectedChildId) {
+    const findChild = (cols) => {
+      for (const col of cols) {
+        const found = col.find(c => c.id === block.selectedChildId);
+        if (found) return found;
+      }
+      return null;
+    };
+    const child = findChild(block.columns || []);
+    if (child) {
+      targetBlock = child;
+      isNested = true;
+    }
+  }
+
   const updateStyle = (key, value, rootKey = null) => {
-    rawUpdateStyle(key, value, rootKey);
+    if (isNested) {
+      // We need to update the CHILD block, not the parent grid directly
+      // However, `rawUpdateStyle` usually updates the ROOT block passed to it.
+      // We need a way to propagate changes to the child.
+      // Since `rawUpdateStyle` in `TemplateBuilder` likely only updates the `selectedBlock` (the Grid),
+      // we might need to update the Grid's columns to update the child.
+
+      // But `AdvancedStyleControls` receives `updateStyle` which might be `updateBox` or state setter.
+      // If `BlockRenderer` is used, `updateStyle` is passed from parent.
+
+      // The current `rawUpdateStyle` passed from `BlockRenderer` (line 3300) might not be enough if it's top-level.
+      // CHECK: Where is AdvancedStyleControls called? 
+      // It is called in `TemplateBuilder.jsx` or `CreateTemplate.jsx`.
+
+      // Let's assume we need to update the parent block (Grid) by modifying its columns to update the child.
+      // But `rawUpdateStyle` usually takes (key, value).
+
+      // Use a custom update for nested blocks:
+      rawUpdateStyle("childUpdate", { childId: targetBlock.id, key, value, rootKey });
+    } else {
+      rawUpdateStyle(key, value, rootKey);
+    }
   };
 
   const Section = ({ id, title, icon, children }) => {
@@ -673,7 +1208,7 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
         <div className="col-span-2 flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Font Family</label>
           <select
-            value={block?.style?.fontFamily || "inherit"}
+            value={targetBlock?.style?.fontFamily || "inherit"}
             onChange={(e) => updateStyle("fontFamily", e.target.value)}
             className="text-xs border rounded p-1 bg-white h-8"
           >
@@ -687,12 +1222,12 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
           </select>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({block?.style?.fontSize}px)</label>
-          <input type="range" min="10" max="100" value={block?.style?.fontSize || 16} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({targetBlock?.style?.fontSize}px)</label>
+          <input type="range" min="10" max="100" value={targetBlock?.style?.fontSize || 16} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Weight</label>
-          <select value={block?.style?.fontWeight || "normal"} onChange={(e) => updateStyle("fontWeight", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
+          <select value={targetBlock?.style?.fontWeight || "normal"} onChange={(e) => updateStyle("fontWeight", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
             <option value="normal">Normal</option>
             <option value="500">Medium</option>
             <option value="700">Bold</option>
@@ -708,7 +1243,7 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
               { val: "right", icon: <FaAlignRight /> },
               { val: "justify", icon: <FaAlignJustify /> }
             ].map(opt => (
-              <button key={opt.val} onClick={() => updateStyle("textAlign", opt.val)} className={`p-1 rounded ${block?.style?.textAlign === opt.val ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>
+              <button key={opt.val} onClick={() => updateStyle("textAlign", opt.val)} className={`p-1 rounded ${targetBlock?.style?.textAlign === opt.val ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>
                 {opt.icon}
               </button>
             ))}
@@ -716,20 +1251,20 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Color</label>
-          <input type="color" value={block?.style?.textColor || "#000000"} onChange={(e) => updateStyle("textColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+          <input type="color" value={targetBlock?.style?.textColor || "#000000"} onChange={(e) => updateStyle("textColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
         </div>
       </Section>
 
-      {block?.type === "heroSection" && (
+      {targetBlock?.type === "heroSection" && (
         <>
           <Section id="heroTitleStyles" title="Hero Title Style" icon={<FaHeading />}>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({block.titleStyle?.fontSize || 36}px)</label>
-              <input type="range" min="20" max="100" value={block.titleStyle?.fontSize || 36} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "titleStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({targetBlock.titleStyle?.fontSize || 36}px)</label>
+              <input type="range" min="20" max="100" value={targetBlock.titleStyle?.fontSize || 36} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "titleStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Weight</label>
-              <select value={block.titleStyle?.fontWeight || "600"} onChange={(e) => updateStyle("fontWeight", e.target.value, "titleStyle")} className="text-xs border rounded p-1 bg-white h-8">
+              <select value={targetBlock.titleStyle?.fontWeight || "600"} onChange={(e) => updateStyle("fontWeight", e.target.value, "titleStyle")} className="text-xs border rounded p-1 bg-white h-8">
                 <option value="normal">Normal</option>
                 <option value="600">Semi-Bold</option>
                 <option value="700">Bold</option>
@@ -738,43 +1273,43 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Color</label>
-              <input type="color" value={block.titleStyle?.textColor || "#ffffff"} onChange={(e) => updateStyle("textColor", e.target.value, "titleStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+              <input type="color" value={targetBlock.titleStyle?.textColor || "#ffffff"} onChange={(e) => updateStyle("textColor", e.target.value, "titleStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
             </div>
           </Section>
 
           <Section id="heroSubtitleStyles" title="Hero Subtitle Style" icon={<FaAlignLeft />}>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({block.subtitleStyle?.fontSize || 18}px)</label>
-              <input type="range" min="12" max="40" value={block.subtitleStyle?.fontSize || 18} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "subtitleStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({targetBlock.subtitleStyle?.fontSize || 18}px)</label>
+              <input type="range" min="12" max="40" value={targetBlock.subtitleStyle?.fontSize || 18} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "subtitleStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Color</label>
-              <input type="color" value={block.subtitleStyle?.textColor || "#ffffff"} onChange={(e) => updateStyle("textColor", e.target.value, "subtitleStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+              <input type="color" value={targetBlock.subtitleStyle?.textColor || "#ffffff"} onChange={(e) => updateStyle("textColor", e.target.value, "subtitleStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Opacity ({Math.round((block.subtitleStyle?.opacity || 0.9) * 100)}%)</label>
-              <input type="range" min="0" max="1" step="0.1" value={block.subtitleStyle?.opacity || 0.9} onChange={(e) => updateStyle("opacity", parseFloat(e.target.value), "subtitleStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Opacity ({Math.round((targetBlock.subtitleStyle?.opacity || 0.9) * 100)}%)</label>
+              <input type="range" min="0" max="1" step="0.1" value={targetBlock.subtitleStyle?.opacity || 0.9} onChange={(e) => updateStyle("opacity", parseFloat(e.target.value), "subtitleStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
             </div>
           </Section>
 
           <Section id="heroButtonStyles" title="Hero Button Style" icon={<FaMousePointer />}>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">BG Color</label>
-              <input type="color" value={block.buttonStyle?.backgroundColor || "#FBBF24"} onChange={(e) => updateStyle("backgroundColor", e.target.value, "buttonStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+              <input type="color" value={targetBlock.buttonStyle?.backgroundColor || "#FBBF24"} onChange={(e) => updateStyle("backgroundColor", e.target.value, "buttonStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Text Color</label>
-              <input type="color" value={block.buttonStyle?.textColor || "#000000"} onChange={(e) => updateStyle("textColor", e.target.value, "buttonStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+              <input type="color" value={targetBlock.buttonStyle?.textColor || "#000000"} onChange={(e) => updateStyle("textColor", e.target.value, "buttonStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Radius ({block.buttonStyle?.borderRadius || 30}px)</label>
-              <input type="range" min="0" max="50" value={block.buttonStyle?.borderRadius || 30} onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value), "buttonStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Radius ({targetBlock.buttonStyle?.borderRadius || 30}px)</label>
+              <input type="range" min="0" max="50" value={targetBlock.buttonStyle?.borderRadius || 30} onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value), "buttonStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
             </div>
           </Section>
         </>
       )}
 
-      {block?.type === "footerBlock" && (
+      {targetBlock?.type === "footerBlock" && (
         <>
           <Section id="titleStyles" title="Footer Title Style" icon={<FaHeading />}>
             <div className="col-span-2 flex flex-col gap-1">
@@ -833,7 +1368,7 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
       )
       }
 
-      {block?.type === "sectionGrid" && (
+      {targetBlock?.type === "sectionGrid" && (
         <>
           <Section id="gridStyle" title="Grid Style" icon={<FaLayerGroup />}>
             {/* Background */}
@@ -878,7 +1413,7 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
 
           <Section id="columnStyles" title="Column Styles" icon={<FaLayerGroup />}>
             <div className="col-span-2 flex gap-1 mb-2 overflow-x-auto pb-2">
-              {(block.columns || []).map((_, i) => (
+              {(targetBlock.columns || []).map((_, i) => (
                 <button
                   key={i}
                   onClick={() => setActiveColIndex(i)}
@@ -970,7 +1505,7 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
         </>
       )}
 
-      {(block?.type === "cardRow" || (block?.type === "sectionGrid" && block?.style?.display === "grid")) && (
+      {(targetBlock?.type === "cardRow" || targetBlock?.type === "infoBox" || targetBlock?.type === "multipleInfoBox" || (targetBlock?.type === "sectionGrid" && targetBlock?.style?.display === "grid")) && (
         <>
           <Section id="cardLayout" title="Grid Layout" icon={<FaLayerGroup />}>
             {/* Width Controls */}
@@ -979,7 +1514,7 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
               <input
                 type="text"
                 placeholder="e.g. 100% or 1200"
-                value={block?.style?.width || ""}
+                value={targetBlock?.style?.width || ""}
                 onChange={(e) => updateStyle("width", e.target.value)}
                 className="text-xs border rounded p-1 w-full h-8"
               />
@@ -989,7 +1524,7 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
               <input
                 type="text"
                 placeholder="e.g. 1200"
-                value={block?.style?.maxWidth || ""}
+                value={targetBlock?.style?.maxWidth || ""}
                 onChange={(e) => updateStyle("maxWidth", e.target.value)}
                 className="text-xs border rounded p-1 w-full h-8"
               />
@@ -999,20 +1534,20 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
               <input
                 type="text"
                 placeholder="e.g. auto or 500"
-                value={block?.style?.height || ""}
+                value={targetBlock?.style?.height || ""}
                 onChange={(e) => updateStyle("height", e.target.value)}
                 className="text-xs border rounded p-1 w-full h-8"
               />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Gap (px)</label>
-              <input type="number" value={block?.style?.gap !== undefined ? block?.style?.gap : 16} onChange={(e) => updateStyle("gap", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" />
+              <input type="number" value={targetBlock?.style?.gap !== undefined ? targetBlock?.style?.gap : 16} onChange={(e) => updateStyle("gap", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" />
             </div>
 
             <div className="col-span-2 flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Columns</label>
               <select
-                value={block?.style?.columns || "auto"}
+                value={targetBlock?.style?.columns || "auto"}
                 onChange={(e) => updateStyle("columns", e.target.value)}
                 className="text-xs border rounded p-1 bg-white h-8"
               >
@@ -1022,13 +1557,14 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
                 <option value="3">3 Columns</option>
                 <option value="4">4 Columns</option>
                 <option value="5">5 Columns</option>
+                <option value="6">6 Columns</option>
               </select>
             </div>
 
             {/* Alignment for Grid */}
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Align (Vertical)</label>
-              <select value={block?.style?.alignItems || "stretch"} onChange={(e) => updateStyle("alignItems", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
+              <select value={targetBlock?.style?.alignItems || "stretch"} onChange={(e) => updateStyle("alignItems", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
                 <option value="stretch">Stretch</option>
                 <option value="center">Center</option>
                 <option value="flex-start">Start</option>
@@ -1037,7 +1573,7 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Justify (Horiz)</label>
-              <select value={block?.style?.justifyContent || "start"} onChange={(e) => updateStyle("justifyContent", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
+              <select value={targetBlock?.style?.justifyContent || "start"} onChange={(e) => updateStyle("justifyContent", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
                 <option value="start">Start</option>
                 <option value="center">Center</option>
                 <option value="space-between">Space Between</option>
@@ -1045,132 +1581,329 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
               </select>
             </div>
           </Section>
+        </>
+      )}
 
-          <Section id="cardStyle" title="Card Style" icon={<FaBorderAll />}>
+      {(targetBlock?.type === "cardRow" || targetBlock?.type === "multipleInfoBox") && (
+        <Section id="cardStyle" title={targetBlock.type === "multipleInfoBox" ? "Unit Style" : "Card Style"} icon={<FaBorderAll />}>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase">{targetBlock.type === "multipleInfoBox" ? "Unit BG" : "Card BG"}</label>
+            <input
+              type="color"
+              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.backgroundColor || "#ffffff") : (targetBlock.cardStyle?.backgroundColor || "#ffffff")}
+              onChange={(e) => updateStyle("backgroundColor", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : "cardStyle")}
+              className="w-8 h-8 rounded border-none p-0 cursor-pointer"
+            />
+          </div>
+
+          {targetBlock.type === "multipleInfoBox" && (
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Card BG</label>
-              <input type="color" value={block.cardStyle?.backgroundColor || "#ffffff"} onChange={(e) => updateStyle("backgroundColor", e.target.value, "cardStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Items Columns</label>
+              <select
+                value={targetBlock.boxStyle?.columns || "1"}
+                onChange={(e) => updateStyle("columns", parseInt(e.target.value), "boxStyle")}
+                className="text-xs border rounded p-1 bg-white h-8"
+              >
+                <option value="1">1 Column</option>
+                <option value="2">2 Columns</option>
+                <option value="3">3 Columns</option>
+                <option value="4">4 Columns</option>
+              </select>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Card Padding ({block.cardStyle?.padding || 16}px)</label>
-              <input type="range" min="0" max="50" value={block.cardStyle?.padding || 16} onChange={(e) => updateStyle("padding", parseInt(e.target.value), "cardStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Radius ({block.cardStyle?.borderRadius || 12}px)</label>
-              <input type="range" min="0" max="50" value={block.cardStyle?.borderRadius || 12} onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value), "cardStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Border Color</label>
-              <input type="color" value={block.cardStyle?.borderColor || "#eeeeee"} onChange={(e) => updateStyle("borderColor", e.target.value, "cardStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-            </div>
+          )}
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase">Padding ({targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.padding || 20) : (targetBlock.cardStyle?.padding || 16)}px)</label>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.padding || 20) : (targetBlock.cardStyle?.padding || 16)}
+              onChange={(e) => updateStyle("padding", parseInt(e.target.value), targetBlock.type === "multipleInfoBox" ? "boxStyle" : "cardStyle")}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase">Radius ({targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderRadius || 12) : (targetBlock.cardStyle?.borderRadius || 12)}px)</label>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderRadius || 12) : (targetBlock.cardStyle?.borderRadius || 12)}
+              onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value), targetBlock.type === "multipleInfoBox" ? "boxStyle" : "cardStyle")}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase">Border Color</label>
+            <input
+              type="color"
+              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderColor || "#eeeeee") : (targetBlock.cardStyle?.borderColor || "#eeeeee")}
+              onChange={(e) => updateStyle("borderColor", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : "cardStyle")}
+              className="w-8 h-8 rounded border-none p-0 cursor-pointer"
+            />
+          </div>
+
+          {targetBlock.type === "multipleInfoBox" && (
+            <>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Border Width</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  value={targetBlock.boxStyle?.borderWidth || 0}
+                  onChange={(e) => updateStyle("borderWidth", parseInt(e.target.value), "boxStyle")}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Top Border Width</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="20"
+                  value={targetBlock.boxStyle?.topBorderWidth || 0}
+                  onChange={(e) => updateStyle("topBorderWidth", parseInt(e.target.value), "boxStyle")}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Top Border Color</label>
+                <input
+                  type="color"
+                  value={targetBlock.boxStyle?.topBorderColor || "#10b981"}
+                  onChange={(e) => updateStyle("topBorderColor", e.target.value, "boxStyle")}
+                  className="w-8 h-8 rounded border-none p-0 cursor-pointer"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Separator Color</label>
+                <input
+                  type="color"
+                  value={targetBlock.boxStyle?.separatorColor || "#e5e7eb"}
+                  onChange={(e) => updateStyle("separatorColor", e.target.value, "boxStyle")}
+                  className="w-8 h-8 rounded border-none p-0 cursor-pointer"
+                />
+              </div>
+              <div className="col-span-2 flex items-center gap-2 mt-1">
+                <input
+                  type="checkbox"
+                  id="showSeparators"
+                  checked={targetBlock.boxStyle?.showSeparators || false}
+                  onChange={(e) => updateStyle("showSeparators", e.target.checked, "boxStyle")}
+                  className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                />
+                <label htmlFor="showSeparators" className="text-[10px] font-bold text-gray-400 uppercase cursor-pointer">Show Vertical Separators</label>
+              </div>
+            </>
+          )}
+
+          {targetBlock.type !== "multipleInfoBox" && (
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Card Min Width</label>
               <input
                 type="text"
                 placeholder="e.g. 200 or 300"
-                value={block.cardStyle?.minWidth || ""}
+                value={targetBlock.cardStyle?.minWidth || ""}
                 onChange={(e) => updateStyle("minWidth", e.target.value, "cardStyle")}
                 className="text-xs border rounded p-1 w-full h-8"
               />
             </div>
+          )}
+          <div className="col-span-2 flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase">Shadow</label>
+            <input
+              type="text"
+              placeholder="e.g. 0 4px 10px rgba(0,0,0,0.1)"
+              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.boxShadow || "") : (targetBlock.cardStyle?.boxShadow || "")}
+              onChange={(e) => updateStyle("boxShadow", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : "cardStyle")}
+              className="text-xs border rounded p-1 w-full h-8"
+            />
+          </div>
+
+          {targetBlock.type === "multipleInfoBox" && (
+            <>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Title Color</label>
+                <input type="color" value={targetBlock.boxStyle?.titleColor || "#111827"} onChange={(e) => updateStyle("titleColor", e.target.value, "boxStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Label Color</label>
+                <input type="color" value={targetBlock.boxStyle?.labelColor || "#6b7280"} onChange={(e) => updateStyle("labelColor", e.target.value, "boxStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Value Color</label>
+                <input type="color" value={targetBlock.boxStyle?.valueColor || "#111827"} onChange={(e) => updateStyle("valueColor", e.target.value, "boxStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Title Size</label>
+                <input type="number" value={targetBlock.boxStyle?.titleFontSize || 18} onChange={(e) => updateStyle("titleFontSize", parseInt(e.target.value), "boxStyle")} className="text-xs border rounded p-1 w-full h-8" />
+              </div>
+            </>
+          )}
+
+          <div className="col-span-2 flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-gray-400 uppercase">Content Alignment</label>
+            <div className="flex bg-white rounded border border-gray-200 p-1 gap-1 justify-center h-8 items-center">
+              {[{ val: "left", icon: <FaAlignLeft /> }, { val: "center", icon: <FaAlignCenter /> }, { val: "right", icon: <FaAlignRight /> }].map(opt => (
+                <button
+                  key={opt.val}
+                  onClick={() => updateStyle("textAlign", opt.val, targetBlock.type === "multipleInfoBox" ? "boxStyle" : "cardStyle")}
+                  className={`p-1 rounded ${(targetBlock.type === "multipleInfoBox" ? targetBlock.boxStyle?.textAlign : targetBlock.cardStyle?.textAlign) === opt.val ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  {opt.icon}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {targetBlock.type === "multipleInfoBox" && (
             <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Content Alignment</label>
-              <div className="flex bg-white rounded border border-gray-200 p-1 gap-1 justify-center h-8 items-center">
-                {[{ val: "left", icon: <FaAlignLeft /> }, { val: "center", icon: <FaAlignCenter /> }, { val: "right", icon: <FaAlignRight /> }].map(opt => (
-                  <button key={opt.val} onClick={() => updateStyle("textAlign", opt.val, "cardStyle")} className={`p-1 rounded ${block.cardStyle?.textAlign === opt.val ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>
-                    {opt.icon}
-                  </button>
-                ))}
+              <label className="text-[10px] font-bold text-gray-400 uppercase">Item Layout (Label/Value)</label>
+              <div className="flex gap-2">
+                <select
+                  value={targetBlock.boxStyle?.itemLayout || "stacked"}
+                  onChange={(e) => updateStyle("itemLayout", e.target.value, "boxStyle")}
+                  className="text-xs border rounded p-1 bg-white h-8 flex-1"
+                >
+                  <option value="stacked">Stacked (Default)</option>
+                  <option value="inline">Inline (Side-by-Side)</option>
+                </select>
+                <input
+                  type="number"
+                  min="1"
+                  max="4"
+                  placeholder="Cols"
+                  value={targetBlock.boxStyle?.columns || 1}
+                  onChange={(e) => updateStyle("columns", parseInt(e.target.value), "boxStyle")}
+                  className="text-xs border rounded p-1 w-16 h-8"
+                  title="Items per Row"
+                />
               </div>
             </div>
-          </Section>
+          )}
 
-          <Section id="cardContent" title="Card Content" icon={<FaHeading />}>
-            {/* Image Controls */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Image Height</label>
-              <input
-                type="text"
-                placeholder="e.g. 150 or 200px"
-                value={block.cardImageStyle?.height || ""}
-                onChange={(e) => updateStyle("height", e.target.value, "cardImageStyle")}
-                className="text-xs border rounded p-1 w-full h-8"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Image Width</label>
-              <input
-                type="text"
-                placeholder="e.g. 100% or 150"
-                value={block.cardImageStyle?.width || ""}
-                onChange={(e) => updateStyle("width", e.target.value, "cardImageStyle")}
-                className="text-xs border rounded p-1 w-full h-8"
-              />
-            </div>
-            <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Image Fit</label>
-              <select
-                value={block.cardImageStyle?.objectFit || "cover"}
-                onChange={(e) => updateStyle("objectFit", e.target.value, "cardImageStyle")}
-                className="text-xs border rounded p-1 bg-white h-8"
+        </Section>
+      )
+      }
+
+      <Section id="cardContent" title="Card Content" icon={<FaHeading />}>
+        {/* Image Controls */}
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Image Height</label>
+          <input
+            type="text"
+            placeholder="e.g. 150 or 200px"
+            value={targetBlock.cardImageStyle?.height || ""}
+            onChange={(e) => updateStyle("height", e.target.value, "cardImageStyle")}
+            className="text-xs border rounded p-1 w-full h-8"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Image Width</label>
+          <input
+            type="text"
+            placeholder="e.g. 100% or 150"
+            value={targetBlock.cardImageStyle?.width || ""}
+            onChange={(e) => updateStyle("width", e.target.value, "cardImageStyle")}
+            className="text-xs border rounded p-1 w-full h-8"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Image Fit</label>
+          <select
+            value={targetBlock.cardImageStyle?.objectFit || "cover"}
+            onChange={(e) => updateStyle("objectFit", e.target.value, "cardImageStyle")}
+            className="text-xs border rounded p-1 bg-white h-8"
+          >
+            <option value="cover">Cover (Fill)</option>
+            <option value="contain">Contain (Show All)</option>
+            <option value="fill">Stretch</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Img Radius</label>
+          <input type="number" value={parseInt(targetBlock.cardImageStyle?.borderRadius) || 8} onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value), "cardImageStyle")} className="text-xs border rounded p-1 w-full h-8" />
+        </div>
+
+        <div className="col-span-2 flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Image Alignment</label>
+          <div className="flex bg-white rounded border border-gray-200 p-1 gap-1 justify-center h-8 items-center">
+            {[
+              { val: "0 auto 0 0", icon: <FaAlignLeft />, label: "Left" },
+              { val: "0 auto", icon: <FaAlignCenter />, label: "Center" },
+              { val: "0 0 0 auto", icon: <FaAlignRight />, label: "Right" }
+            ].map(opt => (
+              <button
+                key={opt.val}
+                onClick={() => updateStyle("margin", opt.val, "cardImageStyle")}
+                className={`flex-1 flex items-center justify-center gap-1 text-[9px] py-1 rounded ${targetBlock.cardImageStyle?.margin === opt.val ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
               >
-                <option value="cover">Cover (Fill)</option>
-                <option value="contain">Contain (Show All)</option>
-                <option value="fill">Stretch</option>
-              </select>
-            </div>
+                {opt.icon} {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-            {/* Title */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Title Size</label>
-              <input type="number" value={block.cardTitleStyle?.fontSize || 16} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "cardTitleStyle")} className="text-xs border rounded p-1 w-full h-8" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Title Color</label>
-              <input type="color" value={block.cardTitleStyle?.textColor || "#000000"} onChange={(e) => updateStyle("textColor", e.target.value, "cardTitleStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-            </div>
-            {/* Description */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Desc Size</label>
-              <input type="number" value={block.cardDescStyle?.fontSize || 14} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "cardDescStyle")} className="text-xs border rounded p-1 w-full h-8" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Desc Color</label>
-              <input type="color" value={block.cardDescStyle?.textColor || "#666666"} onChange={(e) => updateStyle("textColor", e.target.value, "cardDescStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-            </div>
-          </Section>
-        </>
-      )}
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Img Margin T</label>
+          <input type="number" value={parseInt(targetBlock.cardImageStyle?.marginTop) || 0} onChange={(e) => updateStyle("marginTop", parseInt(e.target.value), "cardImageStyle")} className="text-xs border rounded p-1 w-full h-8" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Img Margin B</label>
+          <input type="number" value={parseInt(targetBlock.cardImageStyle?.marginBottom) || 16} onChange={(e) => updateStyle("marginBottom", parseInt(e.target.value), "cardImageStyle")} className="text-xs border rounded p-1 w-full h-8" />
+        </div>
+
+        {/* Title */}
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Title Size</label>
+          <input type="number" value={targetBlock.cardTitleStyle?.fontSize || 16} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "cardTitleStyle")} className="text-xs border rounded p-1 w-full h-8" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Title Color</label>
+          <input type="color" value={targetBlock.cardTitleStyle?.textColor || "#000000"} onChange={(e) => updateStyle("textColor", e.target.value, "cardTitleStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+        </div>
+        {/* Description */}
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Desc Size</label>
+          <input type="number" value={targetBlock.cardDescStyle?.fontSize || 14} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "cardDescStyle")} className="text-xs border rounded p-1 w-full h-8" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Desc Color</label>
+          <input type="color" value={targetBlock.cardDescStyle?.textColor || "#666666"} onChange={(e) => updateStyle("textColor", e.target.value, "cardDescStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+        </div>
+      </Section>
 
       {/* Spacing & Layout */}
       <Section id="spacing" title="Spacing & Layout" icon={<FaLayerGroup />}>
         <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Padding ({block?.style?.padding || 0}px)</label>
-          <input type="range" min="0" max="100" value={block?.style?.padding || 0} onChange={(e) => updateStyle("padding", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Padding ({targetBlock?.style?.padding || 0}px)</label>
+          <input type="range" min="0" max="100" value={targetBlock?.style?.padding || 0} onChange={(e) => updateStyle("padding", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Margin Top</label>
-          <input type="number" value={block?.style?.marginTop} onChange={(e) => updateStyle("marginTop", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" placeholder="px" />
+          <input type="number" value={targetBlock?.style?.marginTop} onChange={(e) => updateStyle("marginTop", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" placeholder="px" />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Margin Btm</label>
-          <input type="number" value={block?.style?.marginBottom} onChange={(e) => updateStyle("marginBottom", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" placeholder="px" />
+          <input type="number" value={targetBlock?.style?.marginBottom} onChange={(e) => updateStyle("marginBottom", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" placeholder="px" />
         </div>
-        {block?.type !== "cardRow" && (
+        {targetBlock?.type !== "cardRow" && (
           <div className="col-span-2 flex flex-col gap-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase">Display</label>
-            <select value={block?.style?.display || "block"} onChange={(e) => updateStyle("display", e.target.value)} className="text-xs border rounded p-1 bg-white w-full h-8">
+            <select value={targetBlock?.style?.display || "block"} onChange={(e) => updateStyle("display", e.target.value)} className="text-xs border rounded p-1 bg-white w-full h-8">
               <option value="block">Block</option>
               <option value="flex">Flex</option>
               <option value="grid">Grid</option>
             </select>
           </div>
         )}
-        {(block?.style?.display === "flex" || block?.style?.display === "grid") && (
+        {(targetBlock?.style?.display === "flex" || targetBlock?.style?.display === "grid") && (
           <>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Direction</label>
-              <select value={block?.style?.flexDirection || "row"} onChange={(e) => updateStyle("flexDirection", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
+              <select value={targetBlock?.style?.flexDirection || "row"} onChange={(e) => updateStyle("flexDirection", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
                 <option value="row">Row</option>
                 <option value="column">Column</option>
                 <option value="row-reverse">Row Reverse</option>
@@ -1179,11 +1912,11 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Gap</label>
-              <input type="number" value={block?.style?.gap} onChange={(e) => updateStyle("gap", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" />
+              <input type="number" value={targetBlock?.style?.gap} onChange={(e) => updateStyle("gap", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Align Items</label>
-              <select value={block?.style?.alignItems || "stretch"} onChange={(e) => updateStyle("alignItems", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
+              <select value={targetBlock?.style?.alignItems || "stretch"} onChange={(e) => updateStyle("alignItems", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
                 <option value="stretch">Stretch</option>
                 <option value="center">Center</option>
                 <option value="flex-start">Start</option>
@@ -1192,7 +1925,7 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
             </div>
             <div className="col-span-2 flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Justify Content</label>
-              <select value={block?.style?.justifyContent || "start"} onChange={(e) => updateStyle("justifyContent", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
+              <select value={targetBlock?.style?.justifyContent || "start"} onChange={(e) => updateStyle("justifyContent", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
                 <option value="start">Start</option>
                 <option value="center">Center</option>
                 <option value="space-between">Space Between</option>
@@ -1208,7 +1941,7 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">BG Color</label>
           <div className="flex items-center gap-2 h-8">
-            <input type="color" value={block?.style?.backgroundColor || "#ffffff"} onChange={(e) => updateStyle("backgroundColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+            <input type="color" value={targetBlock?.style?.backgroundColor || "#ffffff"} onChange={(e) => updateStyle("backgroundColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
           </div>
         </div>
         <div className="col-span-2 flex flex-col gap-1">
@@ -1217,12 +1950,12 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
             <input
               type="text"
               placeholder="Image URL"
-              value={block?.style?.backgroundImage?.replace(/url\(["']?|["']?\)/g, '') || ""}
+              value={targetBlock?.style?.backgroundImage?.replace(/url\(["']?|["']?\)/g, '') || ""}
               onChange={(e) => updateStyle("backgroundImage", e.target.value ? `url("${e.target.value}")` : "")}
               className="text-xs border rounded p-1 flex-1 h-8"
             />
             <input
-              id={`bg-img-upload-${block.id}`}
+              id={`bg-img-upload-${targetBlock.id}`}
               type="file"
               className="hidden"
               accept="image/*"
@@ -1231,14 +1964,14 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
                 if (file) updateStyle("backgroundImage", `url("${URL.createObjectURL(file)}")`);
               }}
             />
-            <label htmlFor={`bg-img-upload-${block.id}`} className="bg-blue-50 text-blue-600 p-2 rounded cursor-pointer hover:bg-blue-100 transition h-8 flex items-center justify-center">
+            <label htmlFor={`bg-img-upload-${targetBlock.id}`} className="bg-blue-50 text-blue-600 p-2 rounded cursor-pointer hover:bg-blue-100 transition h-8 flex items-center justify-center">
               <FaImage />
             </label>
           </div>
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">BG Size</label>
-          <select value={block?.style?.backgroundSize || "cover"} onChange={(e) => updateStyle("backgroundSize", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
+          <select value={targetBlock?.style?.backgroundSize || "cover"} onChange={(e) => updateStyle("backgroundSize", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
             <option value="cover">Cover</option>
             <option value="contain">Contain</option>
             <option value="auto">Auto</option>
@@ -1247,7 +1980,7 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">BG Position</label>
-          <select value={block?.style?.backgroundPosition || "center"} onChange={(e) => updateStyle("backgroundPosition", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
+          <select value={targetBlock?.style?.backgroundPosition || "center"} onChange={(e) => updateStyle("backgroundPosition", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
             <option value="center">Center</option>
             <option value="top">Top</option>
             <option value="bottom">Bottom</option>
@@ -1258,20 +1991,20 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Border Color</label>
           <div className="flex items-center gap-2 h-8">
-            <input type="color" value={block?.style?.borderColor || "#000000"} onChange={(e) => updateStyle("borderColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+            <input type="color" value={targetBlock?.style?.borderColor || "#000000"} onChange={(e) => updateStyle("borderColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
           </div>
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Radius ({block?.style?.borderRadius || 0})</label>
-          <input type="range" min="0" max="50" value={block?.style?.borderRadius || 0} onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Radius ({targetBlock?.style?.borderRadius || 0})</label>
+          <input type="range" min="0" max="50" value={targetBlock?.style?.borderRadius || 0} onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Border Width</label>
-          <input type="range" min="0" max="20" value={block?.style?.borderWidth || 0} onChange={(e) => updateStyle("borderWidth", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+          <input type="range" min="0" max="20" value={targetBlock?.style?.borderWidth || 0} onChange={(e) => updateStyle("borderWidth", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
         </div>
         <div className="col-span-2 flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Box Shadow</label>
-          <input type="text" placeholder="e.g. 0 4px 6px rgba(0,0,0,0.1)" value={block?.style?.boxShadow || ""} onChange={(e) => updateStyle("boxShadow", e.target.value)} className="text-xs border rounded p-1 w-full h-8" />
+          <input type="text" placeholder="e.g. 0 4px 6px rgba(0,0,0,0.1)" value={targetBlock?.style?.boxShadow || ""} onChange={(e) => updateStyle("boxShadow", e.target.value)} className="text-xs border rounded p-1 w-full h-8" />
         </div>
       </Section>
 
@@ -1280,18 +2013,18 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
         <div className="col-span-2 flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Width / Max-Width</label>
           <div className="flex gap-2">
-            <input placeholder="Width (100%)" value={block?.style?.width} onChange={(e) => updateStyle("width", e.target.value)} className="text-xs border rounded p-1 w-1/2 h-8" />
-            <input placeholder="Max Width" value={block?.style?.maxWidth} onChange={(e) => updateStyle("maxWidth", e.target.value)} className="text-xs border rounded p-1 w-1/2 h-8" />
+            <input placeholder="Width (100%)" value={targetBlock?.style?.width} onChange={(e) => updateStyle("width", e.target.value)} className="text-xs border rounded p-1 w-1/2 h-8" />
+            <input placeholder="Max Width" value={targetBlock?.style?.maxWidth} onChange={(e) => updateStyle("maxWidth", e.target.value)} className="text-xs border rounded p-1 w-1/2 h-8" />
           </div>
         </div>
         <div className="col-span-2 flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Height</label>
-          <input placeholder="Height (auto)" value={block?.style?.height} onChange={(e) => updateStyle("height", e.target.value)} className="text-xs border rounded p-1 w-full h-8" />
+          <input placeholder="Height (auto)" value={targetBlock?.style?.height} onChange={(e) => updateStyle("height", e.target.value)} className="text-xs border rounded p-1 w-full h-8" />
         </div>
-        {(block?.type === "image" || block?.type === "heroSection" || block?.type === "customSection") && (
+        {(targetBlock?.type === "image" || targetBlock?.type === "heroSection" || targetBlock?.type === "customSection") && (
           <div className="col-span-2 flex flex-col gap-1">
             <label className="text-[10px] font-bold text-gray-400 uppercase">Image Fit (Object Fit)</label>
-            <select value={block?.style?.objectFit || "cover"} onChange={(e) => updateStyle("objectFit", e.target.value)} className="text-xs border rounded p-1 bg-white w-full h-8">
+            <select value={targetBlock?.style?.objectFit || "cover"} onChange={(e) => updateStyle("objectFit", e.target.value)} className="text-xs border rounded p-1 bg-white w-full h-8">
               <option value="cover">Cover</option>
               <option value="contain">Contain</option>
               <option value="fill">Fill</option>
@@ -1303,7 +2036,7 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
       </Section>
 
       {
-        block?.type === "footerBlock" && (
+        targetBlock?.type === "footerBlock" && (
           <>
             <Section id="footerSettings" title="Footer Settings" icon={<FaCog />}>
               <div className="col-span-2 flex flex-col gap-1">
@@ -1311,13 +2044,13 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
                 <div className="flex gap-1">
                   <input
                     type="text"
-                    value={block.logoUrl || ""}
+                    value={targetBlock.logoUrl || targetBlock.style?.logoUrl || ""}
                     onChange={(e) => updateStyle("logoUrl", e.target.value, true)}
                     className="text-xs border rounded p-1 flex-1 h-8"
                     placeholder="https://..."
                   />
                   <input
-                    id={`footer-logo-upload-${block.id}`}
+                    id={`footer-logo-upload-${targetBlock.id}`}
                     type="file"
                     className="hidden"
                     accept="image/*"
@@ -1326,7 +2059,7 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
                       if (file) updateStyle("logoUrl", URL.createObjectURL(file), true);
                     }}
                   />
-                  <label htmlFor={`footer-logo-upload-${block.id}`} className="bg-blue-50 text-blue-600 p-2 rounded cursor-pointer hover:bg-blue-100 transition h-8 flex items-center justify-center">
+                  <label htmlFor={`footer-logo-upload-${targetBlock.id}`} className="bg-blue-50 text-blue-600 p-2 rounded cursor-pointer hover:bg-blue-100 transition h-8 flex items-center justify-center">
                     <FaImage />
                   </label>
                   <select
@@ -1340,32 +2073,32 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
                 </div>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Logo Width ({block?.style?.logoWidth || 120}px)</label>
-                <input type="range" min="50" max="400" value={block?.style?.logoWidth || 120} onChange={(e) => updateStyle("logoWidth", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Logo Width ({targetBlock?.style?.logoWidth || 120}px)</label>
+                <input type="range" min="50" max="400" value={targetBlock?.style?.logoWidth || 120} onChange={(e) => updateStyle("logoWidth", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-bold text-gray-400 uppercase">Shop Text</label>
-                <input type="text" value={block?.shopText || "Shop Online"} onChange={(e) => updateStyle("shopText", e.target.value, true)} className="text-xs border rounded p-1 w-full h-8" />
+                <input type="text" value={targetBlock.shopText || targetBlock.style?.shopText || "Shop Online"} onChange={(e) => updateStyle("shopText", e.target.value, true)} className="text-xs border rounded p-1 w-full h-8" />
               </div>
               <div className="col-span-2 flex flex-col gap-1">
                 <label className="text-[10px] font-bold text-gray-400 uppercase">Shop URL</label>
-                <input type="text" value={block?.shopLink || ""} onChange={(e) => updateStyle("shopLink", e.target.value, true)} className="text-xs border rounded p-1 w-full h-8" placeholder="https://..." />
+                <input type="text" value={targetBlock.shopLink || targetBlock.style?.shopLink || ""} onChange={(e) => updateStyle("shopLink", e.target.value, true)} className="text-xs border rounded p-1 w-full h-8" placeholder="https://..." />
               </div>
             </Section>
             <Section id="bottomBarStyles" title="Footer Bottom Style" icon={<FaBorderAll />}>
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-bold text-gray-400 uppercase">Background</label>
-                <input type="color" value={block.bottomBarStyle?.backgroundColor || "#041b5c"} onChange={(e) => updateStyle("backgroundColor", e.target.value, "bottomBarStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+                <input type="color" value={targetBlock.bottomBarStyle?.backgroundColor || "#041b5c"} onChange={(e) => updateStyle("backgroundColor", e.target.value, "bottomBarStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Text Size ({block.bottomBarStyle?.fontSize || 12}px)</label>
-                <input type="range" min="8" max="24" value={block.bottomBarStyle?.fontSize || 12} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "bottomBarStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+                <label className="text-[10px] font-bold text-gray-400 uppercase">Text Size ({targetBlock.bottomBarStyle?.fontSize || 12}px)</label>
+                <input type="range" min="8" max="24" value={targetBlock.bottomBarStyle?.fontSize || 12} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "bottomBarStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
               </div>
               <div className="col-span-2 flex flex-col gap-1">
                 <label className="text-[10px] font-bold text-gray-400 uppercase">Border Top</label>
                 <div className="flex gap-2 items-center text-xs">
-                  <input type="color" value={block.bottomBarStyle?.borderColor || "rgba(255,255,255,0.1)"} onChange={(e) => updateStyle("borderColor", e.target.value, "bottomBarStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-                  <input type="text" placeholder="1px solid rgba(255,255,255,0.1)" value={block.bottomBarStyle?.borderTop || "1px solid"} onChange={(e) => updateStyle("borderTop", e.target.value, "bottomBarStyle")} className="border rounded p-1 flex-1 h-8" />
+                  <input type="color" value={targetBlock.bottomBarStyle?.borderColor || "rgba(255,255,255,0.1)"} onChange={(e) => updateStyle("borderColor", e.target.value, "bottomBarStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
+                  <input type="text" placeholder="1px solid rgba(255,255,255,0.1)" value={targetBlock.bottomBarStyle?.borderTop || "1px solid"} onChange={(e) => updateStyle("borderTop", e.target.value, "bottomBarStyle")} className="border rounded p-1 flex-1 h-8" />
                 </div>
               </div>
             </Section>
@@ -1380,12 +2113,12 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
             <input
               type="text"
               placeholder="https://example.com"
-              value={block?.style?.link || ""}
+              value={targetBlock?.style?.link || ""}
               onChange={(e) => updateStyle("link", e.target.value)}
               className="text-xs border rounded p-1 flex-1 h-8"
             />
             <select
-              value={block?.style?.linkTarget || "_self"}
+              value={targetBlock?.style?.linkTarget || "_self"}
               onChange={(e) => updateStyle("linkTarget", e.target.value)}
               className="text-xs border rounded p-1 w-24 h-8"
             >
@@ -1412,7 +2145,6 @@ const FooterBlockRenderer = ({ block, update, readOnly, isSelected, onSelect }) 
     fontFamily: style.fontFamily || "'Outfit', sans-serif"
   };
 
-  // Ensure padding is applied via getCommonStyles if possible, but handle legacy
   if (style.padding === undefined) {
     containerStyle.padding = "0";
   }
@@ -1432,20 +2164,17 @@ const FooterBlockRenderer = ({ block, update, readOnly, isSelected, onSelect }) 
   return (
     <div
       style={containerStyle}
-      className={`relative group ${isSelected ? "ring-2 ring-blue-500" : ""}`}
+      className={`relative group ${isSelected ? "ring-2 ring-blue-500" : ""} block-component block-${block.type} block-${block.id}`}
       onClick={(e) => {
         e.stopPropagation();
         if (onSelect) onSelect();
       }}
     >
-
-      <div
-        className="relative z-10 flex items-center justify-between gap-4 flex-nowrap"
-      >
+      <div className="relative z-10 flex items-center justify-between gap-4 flex-nowrap">
         {/* 1. Logo */}
         <div className="flex-shrink-0">
           <img
-            src={block.logoUrl || "/DashboardIcons/sss-logo.png"}
+            src={block.style?.logoUrl || block.logoUrl || "/DashboardIcons/sss-logo.png"}
             style={{ width: `${style.logoWidth || 120}px` }}
             alt="Logo"
           />
@@ -1593,12 +2322,12 @@ const FooterBlockRenderer = ({ block, update, readOnly, isSelected, onSelect }) 
         {/* 4. Shop Button */}
         <div className="flex-shrink-0">
           <a
-            href={block?.shopLink || "#"}
+            href={block.style?.shopLink || block.shopLink || "#"}
             target="_blank"
             rel="noopener noreferrer"
             className="bg-white text-[#062375] px-5 py-3 rounded-full font-bold text-sm flex items-center gap-2 shadow-xl hover:bg-gray-100 transition whitespace-nowrap"
           >
-            <FaShoppingCart size={16} /> {block?.shopText || "Shop Online"}
+            <FaShoppingCart size={16} /> {block.style?.shopText || block.shopText || "Shop Online"}
           </a>
         </div>
       </div>
@@ -1634,7 +2363,6 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
     backgroundColor: style.backgroundColor || "#f3f4f6",
   };
 
-  // Add defaults if not set
   if (!style.borderRadius) containerStyle.borderRadius = "16px";
   if (!style.padding) containerStyle.padding = "20px";
   if (!style.gap) containerStyle.gap = "16px";
@@ -1642,159 +2370,22 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
   if (!style.border && !style.borderWidth) containerStyle.border = "1px solid #e5e7eb";
 
   return (
-    <div style={containerStyle} className="relative group/infobox">
-
-
-      {/* InfoBox Toolbar */}
-      {!readOnly && (
-        <div className="absolute -top-3 right-0 flex gap-2 opacity-0 group-hover/infobox:opacity-100 transition z-50">
-          {/* Settings Trigger */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowSettings(!showSettings);
-            }}
-            className="bg-gray-800 text-white p-1.5 rounded-full shadow hover:bg-black w-6 h-6 flex items-center justify-center transform hover:scale-110 active:scale-90 transition-transform"
-            title="InfoBox Settings"
-          >
-            {showSettings ? <FaTimes size={10} /> : <FaCog size={10} />}
-          </button>
-        </div>
-      )}
-
-      {/* Settings Panel */}
-      {showSettings && !readOnly && (
-        <div
-          className="absolute right-0 top-6 bg-white border border-gray-200 shadow-xl rounded-lg p-3 w-64 z-50 animate-in fade-in zoom-in duration-200"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="text-xs font-bold uppercase text-gray-400 mb-2 pb-1 border-b">InfoBox Settings</div>
-
-          <div className="space-y-3">
-            {/* Layout */}
-            <div>
-              <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Layout</label>
-              <div className="flex bg-gray-100 p-1 rounded mb-2">
-                <button
-                  onClick={() => updateStyle("flexDirection", "row")}
-                  className={`flex-1 text-[10px] py-1 rounded ${style.flexDirection === "row" ? "bg-white shadow text-blue-600 font-bold" : "text-gray-500 hover:text-gray-700"}`}
-                >
-                  Columns (Row)
-                </button>
-                <button
-                  onClick={() => updateStyle("flexDirection", "column")}
-                  className={`flex-1 text-[10px] py-1 rounded ${style.flexDirection === "column" || !style.flexDirection ? "bg-white shadow text-blue-600 font-bold" : "text-gray-500 hover:text-gray-700"}`}
-                >
-                  List (Column)
-                </button>
-              </div>
-
-              {/* Columns Count (Only for Row) */}
-              {style.flexDirection === "row" && (
-                <div className="flex items-center gap-2">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase">Cols:</label>
-                  <select
-                    value={style.columns || "auto"}
-                    onChange={(e) => updateStyle("columns", e.target.value === "auto" ? "auto" : parseInt(e.target.value))}
-                    className="text-xs border rounded p-1 bg-white flex-1"
-                  >
-                    <option value="auto">Auto (Fit)</option>
-                    <option value="1">1 Column</option>
-                    <option value="2">2 Columns</option>
-                    <option value="3">3 Columns</option>
-                    <option value="4">4 Columns</option>
-                    <option value="5">5 Columns</option>
-                  </select>
-                </div>
-              )}
-            </div>
-
-            {/* Colors */}
-            <div className="flex gap-2">
-              <div>
-                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Background</label>
-                <div className="flex items-center gap-2 border rounded p-1 bg-white h-7">
-                  <input
-                    type="color"
-                    value={style.backgroundColor || "#f3f4f6"}
-                    onChange={(e) => updateStyle("backgroundColor", e.target.value)}
-                    className="w-4 h-4 rounded-full border-none p-0 cursor-pointer"
-                  />
-                </div>
-              </div>
-              <div className="flex-1">
-                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Top Accent</label>
-                <div className="flex items-center gap-2 border rounded p-1 bg-white h-7">
-                  <input
-                    type="color"
-                    value={style.topBorderColor || "#000000"}
-                    onChange={(e) => updateStyle("topBorderColor", e.target.value)}
-                    className="w-4 h-4 rounded-full border-none p-0 cursor-pointer"
-                  />
-                  <button
-                    onClick={() => updateStyle("topBorderColor", "")}
-                    className="text-[10px] text-red-500 hover:bg-red-50 px-1 rounded ml-auto"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Spacing */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Gap (px)</label>
-                <input
-                  type="number"
-                  value={style.gap !== undefined ? style.gap : 16}
-                  onChange={(e) => updateStyle("gap", parseInt(e.target.value))}
-                  className="w-full text-xs border rounded p-1"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Padding (px)</label>
-                <input
-                  type="number"
-                  value={style.padding !== undefined ? style.padding : 20}
-                  onChange={(e) => updateStyle("padding", parseInt(e.target.value))}
-                  className="w-full text-xs border rounded p-1"
-                />
-              </div>
-            </div>
-
-            {/* Labels Font Size */}
-            <div>
-              <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Label Size ({style.labelFontSize || 14}px)</label>
-              <input
-                type="range" min="10" max="32"
-                value={style.labelFontSize || 14}
-                onChange={(e) => updateStyle("labelFontSize", parseInt(e.target.value))}
-                className="w-full h-1 bg-blue-200 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="pt-2 border-t border-gray-100 mt-2">
-            <button
-              onClick={() => {
-                update("duplicateBlock", block); // Parent handles this specific key to duplicate
-                setShowSettings(false);
-              }}
-              className="w-full flex items-center justify-center gap-2 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 p-2 rounded transition uppercase"
-            >
-              <FaCopy /> Duplicate InfoBox
-            </button>
-          </div>
-        </div>
-      )}
+    <div
+      className={`block-component block-${block.type} block-${block.id}`}
+      style={{
+        ...containerStyle,
+        display: style.display || "flex",
+        flexWrap: "wrap",
+        flexDirection: style.flexDirection || "column",
+        gap: `${style.gap !== undefined ? style.gap : 16}px`
+      }}
+    >
       {(block.items || []).map((item, i) => {
         const columns = style.columns || "auto";
         const gap = style.gap !== undefined ? style.gap : 16;
-        // Calculate flex basis for fixed columns
-        // Formula: (100% - (gap * (n-1))) / n
-        const flexBasis = columns !== "auto"
+        const isGrid = style.display === "grid";
+
+        const flexBasis = !isGrid && columns !== "auto"
           ? `calc(100% / ${columns} - ${(gap * (columns - 1)) / columns}px)`
           : undefined;
 
@@ -1803,29 +2394,15 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
             key={i}
             className={!readOnly ? "group relative" : ""}
             style={{
-              display: "flex", // Ensure it's a flex container for inner content if needed
-              flexDirection: "column",
-              flex: style.flexDirection === "row"
+              flex: isGrid ? undefined : (style.flexDirection === "row"
                 ? (columns === "auto" ? "1 1 0px" : `0 0 ${flexBasis}`)
-                : "1 1 auto",
-              minWidth: style.flexDirection === "row"
-                ? (columns === "auto" ? "100px" : "auto")
-                : "100%",
-              maxWidth: style.flexDirection === "row" && columns !== "auto" ? flexBasis : "100%",
-              // Keep styling consistent for readonly
-              ...(!readOnly ? {} : {
-                // When readonly, we still want to respect the column layout if set
-                flex: style.flexDirection === "row"
-                  ? (columns === "auto" ? "1 1 100px" : `0 0 ${flexBasis}`)
-                  : "1 1 auto",
-                minWidth: style.flexDirection === "row"
-                  ? (columns === "auto" ? "80px" : "auto")
-                  : "100%",
-                maxWidth: style.flexDirection === "row" && columns !== "auto" ? flexBasis : "100%",
-              })
+                : "1 1 auto"),
+              minWidth: isGrid ? undefined : (style.flexDirection === "row"
+                ? (columns === "auto" ? (readOnly ? "80px" : "100px") : "auto")
+                : "100%"),
+              maxWidth: isGrid ? undefined : (style.flexDirection === "row" && columns !== "auto" ? flexBasis : "100%"),
             }}
           >
-            {/* Duplicate Item */}
             {!readOnly && (
               <button
                 onClick={(e) => {
@@ -1837,18 +2414,15 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
                 className="absolute -top-2 right-5 text-blue-500 text-xs opacity-0 group-hover:opacity-100 z-10 hover:scale-110"
                 title="Duplicate Item"
               >
-                <FaCopy />
+                <FaCopy size={10} />
               </button>
             )}
 
-            {/* Remove Item */}
             {!readOnly && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  const newItems = block.items.filter(
-                    (_, idx) => idx !== i
-                  );
+                  const newItems = (block.items || []).filter((_, idx) => idx !== i);
                   update("items", newItems);
                 }}
                 className="absolute -top-2 right-0 text-red-500 text-xs opacity-0 group-hover:opacity-100 z-10"
@@ -1865,79 +2439,17 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
                   rel="noopener noreferrer"
                   style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
                 >
-                  {/* Label */}
-                  <div
-                    style={{
-                      textAlign: 'left',
-                      fontWeight: style.labelFontWeight || 800,
-                      fontSize: style.labelFontSize
-                        ? `${style.labelFontSize}px`
-                        : "14px",
-                      color: style.labelColor || "#34353B",
-                      marginBottom: "6px",
-                      whiteSpace: "pre-wrap",
-                      overflowWrap: "break-word",
-                    }}
-                  >
+                  <div style={{ textAlign: 'left', fontWeight: style.labelFontWeight || 800, fontSize: style.labelFontSize ? `${style.labelFontSize}px` : "14px", color: style.labelColor || "#34353B", marginBottom: "6px", whiteSpace: "pre-wrap", overflowWrap: "break-word" }}>
                     {item.label}
                   </div>
-
-                  {/* Value */}
-                  <div
-                    style={{
-                      textAlign: 'left',
-                      fontSize: style.valueFontSize
-                        ? `${style.valueFontSize}px`
-                        : "14px",
-                      color: style.valueColor || "#111827",
-                      lineHeight: "1.5",
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                      overflowWrap: "break-word",
-                      width: "100%",
-                    }}
-                    dangerouslySetInnerHTML={{
-                      __html: item.value || "",
-                    }}
-                  />
+                  <div style={{ textAlign: 'left', fontSize: style.valueFontSize ? `${style.valueFontSize}px` : "14px", color: style.valueColor || "#111827", lineHeight: "1.5", whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word", width: "100%" }} dangerouslySetInnerHTML={{ __html: item.value || "" }} />
                 </a>
               ) : (
                 <>
-                  {/* Label */}
-                  <div
-                    style={{
-                      textAlign: 'left',
-                      fontWeight: style.labelFontWeight || 800,
-                      fontSize: style.labelFontSize
-                        ? `${style.labelFontSize}px`
-                        : "14px",
-                      color: style.labelColor || "#111827",
-                      marginBottom: "6px",
-                      whiteSpace: "pre-wrap",
-                      overflowWrap: "break-word",
-                    }}
-                  >
+                  <div style={{ textAlign: 'left', fontWeight: style.labelFontWeight || 800, fontSize: style.labelFontSize ? `${style.labelFontSize}px` : "14px", color: style.labelColor || "#111827", marginBottom: "6px", whiteSpace: "pre-wrap", overflowWrap: "break-word" }}>
                     {item.label}
                   </div>
-
-                  {/* Value */}
-                  <div
-                    style={{
-                      textAlign: 'left',
-                      fontSize: style.valueFontSize
-                        ? `${style.valueFontSize}px`
-                        : "14px",
-                      color: style.valueColor || "#111827",
-                      lineHeight: "1.5",
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                      overflowWrap: "break-word",
-                      width: "100%",
-                    }}
-                    dangerouslySetInnerHTML={{
-                      __html: item.value || "",
-                    }}
-                  />
+                  <div style={{ textAlign: 'left', fontSize: style.valueFontSize ? `${style.valueFontSize}px` : "14px", color: style.valueColor || "#111827", lineHeight: "1.5", whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word", width: "100%" }} dangerouslySetInnerHTML={{ __html: item.value || "" }} />
                 </>
               )
             ) : (
@@ -1945,29 +2457,31 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
                 <VariableTextarea
                   value={item.label || ""}
                   onChange={(e) => {
-                    const newItems = [...block.items];
+                    const newItems = [...(block.items || [])];
                     newItems[i] = { ...newItems[i], label: e.target.value };
                     update("items", newItems);
                   }}
-                  className="w-full text-xs font-bold bg-transparent outline-none resize-none overflow-hidden placeholder-gray-400 border-b border-gray-200 pb-1"
+                  className="w-full text-xs font-bold bg-transparent outline-none resize-none overflow-hidden pb-1"
+                  style={{ color: style.labelColor || "#34353B" }}
                   placeholder="Label"
+                  showVariables={false}
                 />
-
                 <VariableTextarea
                   value={item.value || ""}
                   onChange={(e) => {
-                    const newItems = [...block.items];
+                    const newItems = [...(block.items || [])];
                     newItems[i] = { ...newItems[i], value: e.target.value };
                     update("items", newItems);
                   }}
-                  className="w-full text-xs bg-transparent outline-none resize-none overflow-hidden placeholder-gray-400"
+                  className="w-full text-xs bg-transparent outline-none resize-none overflow-hidden"
+                  style={{ color: style.valueColor || "#111827" }}
                   placeholder="Value"
+                  showVariables={false}
                 />
-
                 <input
                   value={item.link || ""}
                   onChange={(e) => {
-                    const newItems = [...block.items];
+                    const newItems = [...(block.items || [])];
                     newItems[i] = { ...newItems[i], link: e.target.value };
                     update("items", newItems);
                   }}
@@ -1980,18 +2494,254 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
         );
       })}
 
-      {/* Add Item Button */}
       {!readOnly && (
         <button
-          onClick={() =>
-            update("items", [
-              ...(block.items || []),
-              { label: "Label", value: "Value" },
-            ])
-          }
+          onClick={() => update("items", [...(block.items || []), { label: "Label", value: "Value" }])}
           className="text-xl font-bold text-gray-400 hover:text-blue-500"
         >
           +
+        </button>
+      )}
+    </div>
+  );
+};
+
+const MultipleInfoBoxRenderer = ({ block, update, readOnly }) => {
+  const style = block.style || {};
+  const boxStyle = block.boxStyle || {};
+
+  const isGrid = style.display === "grid";
+  const isFlex = style.display === "flex";
+
+  const containerStyle = {
+    ...getCommonStyles(block),
+    display: style.display || "grid",
+    // Grid Props
+    gridTemplateColumns: isGrid ? `repeat(${style.columns || 1}, minmax(0, 1fr))` : undefined,
+    gap: style.gap ? `${style.gap}px` : "16px",
+    // Flex Props
+    flexDirection: isFlex ? (style.flexDirection || "row") : undefined,
+    flexWrap: isFlex ? "wrap" : undefined,
+    justifyContent: isFlex ? (style.justifyContent || "flex-start") : undefined,
+    alignItems: isFlex ? (style.alignItems || "stretch") : undefined,
+  };
+
+  const updateBox = (boxId, key, value) => {
+    const newBoxes = (block.boxes || []).map((b) =>
+      b.id === boxId ? { ...b, [key]: value } : b
+    );
+    update("boxes", newBoxes);
+  };
+
+  const updateBoxItem = (boxId, itemIndex, key, value) => {
+    const newBoxes = (block.boxes || []).map((b) => {
+      if (b.id !== boxId) return b;
+      const newItems = [...(b.items || [])];
+      newItems[itemIndex] = { ...newItems[itemIndex], [key]: value };
+      return { ...b, items: newItems };
+    });
+    update("boxes", newBoxes);
+  };
+
+  const addBox = () => {
+    const newBox = {
+      id: crypto.randomUUID(),
+      title: "New Box",
+      items: [{ label: "Label", value: "Value" }]
+    };
+    update("boxes", [...(block.boxes || []), newBox]);
+  };
+
+  const duplicateBox = (boxId) => {
+    const boxIndex = (block.boxes || []).findIndex(b => b.id === boxId);
+    if (boxIndex === -1) return;
+    const duplicatedBox = {
+      ...block.boxes[boxIndex],
+      id: crypto.randomUUID(),
+      items: (block.boxes[boxIndex].items || []).map(it => ({ ...it }))
+    };
+    const newBoxes = [
+      ...block.boxes.slice(0, boxIndex + 1),
+      duplicatedBox,
+      ...block.boxes.slice(boxIndex + 1)
+    ];
+    update("boxes", newBoxes);
+  };
+
+  const removeBox = (boxId) => {
+    update("boxes", (block.boxes || []).filter(b => b.id !== boxId));
+  };
+
+  return (
+    <div
+      className={`block-component block-${block.type} block-${block.id}`}
+      style={containerStyle}
+    >
+      {(block.boxes || []).map((box) => (
+        <div
+          key={box.id}
+          className={!readOnly ? "relative group/box" : ""}
+          style={{
+            backgroundColor: boxStyle.backgroundColor || "#ffffff",
+            borderRadius: parseUnit(boxStyle.borderRadius) || "12px",
+            padding: parseUnit(boxStyle.padding) || "20px",
+            boxShadow: boxStyle.boxShadow || "0 2px 4px rgba(0,0,0,0.05)",
+            border: boxStyle.border || (boxStyle.borderWidth ? `${boxStyle.borderWidth}px solid ${boxStyle.borderColor || "#eee"}` : "1px solid #eee"),
+            borderTop: boxStyle.topBorderWidth ? `${boxStyle.topBorderWidth}px solid ${boxStyle.topBorderColor || boxStyle.borderColor || "#10b981"}` : undefined,
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+            textAlign: boxStyle.textAlign || "left",
+            width: isFlex ? (style.flexDirection === "column" ? "100%" : undefined) : undefined,
+            flex: isFlex ? "1 1 0px" : undefined, // Distribute evenly in flex
+          }}
+        >
+          {/* Controls */}
+          {!readOnly && (
+            <div className="absolute -top-3 -right-3 flex gap-1 z-10 opacity-0 group-hover/box:opacity-100 transition">
+              <button
+                className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-blue-600 shadow-lg"
+                onClick={(e) => { e.stopPropagation(); duplicateBox(box.id); }}
+                title="Duplicate Box"
+              >
+                <FaCopy size={8} />
+              </button>
+              <button
+                className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-600 shadow-lg"
+                onClick={(e) => { e.stopPropagation(); removeBox(box.id); }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {/* Title */}
+          {readOnly ? (
+            <h4 style={{
+              margin: 0,
+              fontSize: boxStyle.titleFontSize ? `${boxStyle.titleFontSize}px` : "18px",
+              fontWeight: 800,
+              color: boxStyle.titleColor || "#111827"
+            }}>
+              {box.title}
+            </h4>
+          ) : (
+            <input
+              className="w-full bg-transparent outline-none font-bold text-lg border-b border-dashed border-gray-100 pb-1"
+              value={box.title}
+              onChange={(e) => updateBox(box.id, "title", e.target.value)}
+              placeholder="Box Title"
+              style={{ color: boxStyle.titleColor || "#111827" }}
+            />
+          )}
+
+          {/* Items */}
+          <div
+            className="grid gap-3"
+            style={{
+              gridTemplateColumns: `repeat(${boxStyle.columns || 1}, 1fr)`,
+            }}
+          >
+            {(box.items || []).map((item, idx) => {
+              // Calculate Separator Logic
+              const cols = boxStyle.columns || 1;
+              const isLastInRow = (idx + 1) % cols === 0;
+              const isLastItem = idx === (box.items || []).length - 1;
+              const showSeparator = boxStyle.showSeparators && !isLastInRow && !isLastItem;
+
+              return (
+                <div
+                  key={idx}
+                  className={!readOnly
+                    ? `relative group/item gap-1 ${boxStyle.itemLayout === 'inline' ? 'flex flex-row justify-between items-center' : 'flex flex-col'}`
+                    : `gap-1 ${boxStyle.itemLayout === 'inline' ? 'flex flex-row justify-between items-center' : 'flex flex-col'}`
+                  }
+                  style={{
+                    borderRight: showSeparator ? `1px solid ${boxStyle.separatorColor || "#e5e7eb"}` : undefined,
+                    paddingRight: showSeparator ? "16px" : undefined,
+                    marginRight: showSeparator ? "0px" : undefined
+                  }}
+                >
+                  {!readOnly && (
+                    <button
+                      onClick={() => {
+                        const newItems = (box.items || []).filter((_, i) => i !== idx);
+                        updateBox(box.id, "items", newItems);
+                      }}
+                      className="absolute -right-2 top-0 text-red-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition"
+                    >
+                      ×
+                    </button>
+                  )}
+                  {readOnly ? (
+                    <>
+                      <div style={{
+                        fontWeight: 700,
+                        fontSize: "12px",
+                        textTransform: "uppercase",
+                        color: boxStyle.labelColor || "#6b7280",
+                        marginBottom: boxStyle.itemLayout === 'inline' ? "0" : "2px"
+                      }}>{item.label}</div>
+                      <div style={{
+                        fontSize: "14px",
+                        color: boxStyle.valueColor || "#111827",
+                        textAlign: boxStyle.itemLayout === 'inline' ? "right" : "left"
+                      }} dangerouslySetInnerHTML={{ __html: item.value || "" }} />
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        className="text-[10px] font-bold uppercase bg-transparent outline-none"
+                        value={item.label || ""}
+                        onChange={(e) => updateBoxItem(box.id, idx, "label", e.target.value)}
+                        placeholder="Label"
+                        style={{
+                          width: boxStyle.itemLayout === 'inline' ? '40%' : '100%',
+                          color: boxStyle.labelColor || "#6b7280"
+                        }}
+                      />
+                      <VariableTextarea
+                        className="text-sm bg-transparent outline-none resize-none overflow-hidden"
+                        value={item.value || ""}
+                        onChange={(e) => updateBoxItem(box.id, idx, "value", e.target.value)}
+                        placeholder="Value"
+                        showVariables={false}
+                        style={{
+                          width: boxStyle.itemLayout === 'inline' ? '55%' : '100%',
+                          textAlign: boxStyle.itemLayout === 'inline' ? 'right' : 'left',
+                          color: boxStyle.valueColor || "#111827"
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Add Item Button */}
+            {!readOnly && (
+              <button
+                onClick={() => {
+                  const newItems = [...(box.items || []), { label: "Label", value: "Value" }];
+                  updateBox(box.id, "items", newItems);
+                }}
+                className="text-xs text-blue-500 hover:text-blue-700 font-bold mt-2 self-start flex items-center gap-1 col-span-full"
+              >
+                <FaPlus size={10} /> Add Item
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {/* Add Box */}
+      {!readOnly && (
+        <button
+          onClick={addBox}
+          className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-gray-400 hover:border-blue-400 hover:text-blue-400 transition flex flex-col items-center justify-center gap-2 min-h-[150px]"
+        >
+          <FaPlus size={20} />
+          <span className="text-xs font-bold uppercase">Add New Box</span>
         </button>
       )}
     </div>
@@ -2050,8 +2800,20 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
 
   const handleConvertToBlocks = () => {
     if (!block.content) return;
-    const items = convertHtmlToBlocks(block.content);
+    let items = convertHtmlToBlocks(block.content);
     if (items.length === 0) return;
+
+    // ✅ RECURSIVE FLATTEN: Strip wrapper grids (1-column grids) to expose content
+    const flattenBlocks = (list) => {
+      return list.flatMap(b => {
+        if (b.type === "sectionGrid" && b.columns?.length === 1) {
+          return flattenBlocks(b.columns[0]); // Recursively unwrap
+        }
+        return b;
+      });
+    };
+
+    items = flattenBlocks(items);
 
     if (window.confirm(`This will convert your HTML into ${items.length} separate blocks. This action cannot be undone. Continue?`)) {
       setBlocks((prev) => {
@@ -2335,7 +3097,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     // CUSTOM SECTION
     if (block?.type === "customSection") {
       return (
-        <div style={getCommonStyles(block)} className={!readOnly ? "relative min-h-[300px] flex flex-col justify-center overflow-hidden hover:shadow-lg transition-shadow duration-300" : ""}>
+        <div style={getCommonStyles(block)} className={`${!readOnly ? "relative min-h-[300px] flex flex-col justify-center overflow-hidden hover:shadow-lg transition-shadow duration-300" : ""} block-component block-${block.type} block-${block.id}`}>
           {/* BG Upload Overlay */}
           {!readOnly && (
             <div className="absolute top-2 right-2 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition">
@@ -2543,7 +3305,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     // HEADING
     if (block?.type === "heading") {
       return (
-        <div style={{ ...getCommonStyles(block) }}>
+        <div style={{ ...getCommonStyles(block) }} className={`block-component block-${block.type} block-${block.id}`}>
           {readOnly ? (
             <h2 style={{
               color: block.style?.textColor,
@@ -2602,7 +3364,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
       };
 
       return (
-        <div style={{ ...getCommonStyles(block) }}>
+        <div style={{ ...getCommonStyles(block) }} className={`block-component block-${block.type} block-${block.id}`}>
           <TextEditor
             id={block.id}
             readOnly={readOnly}
@@ -2643,7 +3405,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     if (block?.type === "input")
       return (
         <input
-          className="w-full border p-3 border-gray-200 rounded-md"
+          className={`w-full border p-3 border-gray-200 rounded-md block-component block-${block.type} block-${block.id}`}
           placeholder={block.placeholder}
         />
       );
@@ -2652,7 +3414,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     // DIVIDER
     if (block?.type === "divider") {
       return (
-        <div style={{ ...getCommonStyles(block) }}>
+        <div style={{ ...getCommonStyles(block) }} className={`block-component block-${block.type} block-${block.id}`}>
           <hr style={{ borderTop: '2px solid #f3f4f6', margin: 0 }} className={!readOnly ? "border-t-2 border-gray-100" : ""} />
         </div>
       );
@@ -2672,7 +3434,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
       };
 
       return (
-        <div style={{ ...getCommonStyles(block) }}>
+        <div style={{ ...getCommonStyles(block) }} className={`block-component block-${block.type} block-${block.id}`}>
           {block.url && (
             <img
               src={block.url}
@@ -2717,7 +3479,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     // BUTTON
     if (block?.type === "btn") {
       return (
-        <div style={{ ...getCommonStyles(block) }}>
+        <div style={{ ...getCommonStyles(block) }} className={`block-component block-${block.type} block-${block.id}`}>
           <button
             className={!readOnly ? "px-8 py-3 rounded-full transition-transform hover:scale-105" : ""}
             style={{
@@ -2758,16 +3520,16 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     // SECTION GRID (Remaining original functionality)
     if (block?.type === "sectionGrid")
       return (
-        <div style={getCommonStyles(block)}>
+        <div style={getCommonStyles(block)} className={`block-component block-${block.type} block-${block.id}`}>
           <div
             style={{
               display: block.style?.display === "flex" ? "flex" : "grid",
               flexDirection: block.style?.flexDirection,
               gap: block.style?.gap !== undefined ? `${block.style.gap}px` : "16px",
 
-              gridTemplateColumns: block.style?.display === "flex" ? undefined : (readOnly
+              gridTemplateColumns: block.style?.display === "flex" ? undefined : (block.style?.gridTemplateColumns || (block.style?.columns && block.style?.columns !== "auto" ? `repeat(${block.style.columns}, minmax(0, 1fr))` : (readOnly
                 ? `repeat(${block.columns.length}, minmax(0, 1fr))`
-                : `repeat(${block.columns.length}, minmax(200px, 1fr)) 60px`),
+                : `repeat(${block.columns.length}, minmax(200px, 1fr)) 60px`))),
               overflowX: (!readOnly && block.style?.display !== "flex") ? "auto" : undefined,
               alignItems: block.style?.alignItems || "start",
               justifyContent: block.style?.justifyContent || "start",
@@ -2826,6 +3588,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                             { type: "image", icon: <FaImage />, label: "Image" },
                             { type: "heading", icon: <FaHeading />, label: "Heading" },
                             { type: "btn", icon: <FaMousePointer />, label: "Button" },
+                            { type: "cardRow", icon: <FaLayerGroup />, label: "Cards" },
                             { type: "infoBox", icon: <FaLayerGroup />, label: "Info Box" },
                             { type: "noteSection", icon: <FaStickyNote />, label: "Notes" }
                           ].map(opt => (
@@ -2842,7 +3605,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                       ) : (
                         <div className="flex gap-2 justify-center">
                           <span className="text-[10px] text-gray-400 uppercase font-bold self-center mr-2">Add:</span>
-                          {["text", "image", "heading", "btn", "infoBox", "noteSection"].map((t) => (
+                          {["text", "image", "heading", "btn", "cardRow", "infoBox", "noteSection"].map((t) => (
                             <button
                               key={t}
                               className="w-6 h-6 flex items-center justify-center text-[10px] font-bold uppercase bg-white border border-gray-200 rounded-full hover:bg-blue-50 hover:border-blue-300 transition text-gray-500"
@@ -2857,7 +3620,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                     </div>
                   )}
                   {col.map((child) => (
-                    <div key={child.id} style={readOnly ? { padding: '4px' } : {}} className={!readOnly ? "p-1 relative group hover:scale-[1.01]" : ""}>
+                    <div key={child.id} style={readOnly ? { padding: '4px' } : {}} className={!readOnly ? "p-1 relative group hover:z-50 transition-all" : ""}>
                       <BlockRenderer
                         block={child}
                         blocks={col}
@@ -2918,6 +3681,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
             flexWrap: "wrap",
             gap: `${gap}px`
           }}
+          className={`block-component block-${block.type} block-${block.id}`}
         >
           {(block.cards || []).map((card) => (
             <div
@@ -2932,7 +3696,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                 borderRadius: block.cardStyle?.borderRadius ? `${block.cardStyle.borderRadius}px` : (card.style?.borderRadius || "12px"),
                 padding: block.cardStyle?.padding ? `${block.cardStyle.padding}px` : (card.style?.padding || "16px"),
                 border: block.cardStyle?.border || `1px solid ${block.cardStyle?.borderColor || "#eee"}`,
-                boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+                boxShadow: block.cardStyle?.boxShadow || "0 2px 4px rgba(0,0,0,0.05)",
                 textAlign: block.cardStyle?.textAlign || "left",
 
                 // Flex Layout
@@ -2993,11 +3757,13 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                         alt=""
                         style={{
                           width: parseUnit(block.cardImageStyle?.width) || "100%",
-                          borderRadius: "8px",
-                          objectFit: block.cardImageStyle?.objectFit || "cover",
                           height: parseUnit(block.cardImageStyle?.height) || "128px",
-                          display: "block",
-                          margin: "0 auto"
+                          objectFit: block.cardImageStyle?.objectFit || "cover",
+                          borderRadius: parseUnit(block.cardImageStyle?.borderRadius) || "8px",
+                          marginTop: parseUnit(block.cardImageStyle?.marginTop) || "0px",
+                          marginBottom: parseUnit(block.cardImageStyle?.marginBottom) || "16px",
+                          margin: block.cardImageStyle?.margin || "0 auto",
+                          display: "block"
                         }}
                       />
                     </a>
@@ -3007,16 +3773,18 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                       alt=""
                       className={
                         !readOnly
-                          ? "w-full rounded-lg"
+                          ? "rounded-lg"
                           : ""
                       }
                       style={{
                         width: parseUnit(block.cardImageStyle?.width) || "100%",
-                        borderRadius: "8px",
-                        objectFit: block.cardImageStyle?.objectFit || "cover",
                         height: parseUnit(block.cardImageStyle?.height) || "128px",
-                        display: "block",
-                        margin: "0 auto"
+                        objectFit: block.cardImageStyle?.objectFit || "cover",
+                        borderRadius: parseUnit(block.cardImageStyle?.borderRadius) || "8px",
+                        marginTop: parseUnit(block.cardImageStyle?.marginTop) || "0px",
+                        marginBottom: parseUnit(block.cardImageStyle?.marginBottom) || "16px",
+                        margin: block.cardImageStyle?.margin || "0 auto",
+                        display: "block"
                       }}
                     />
                   )
@@ -3078,7 +3846,8 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                         fontWeight: "bold",
                         whiteSpace: "pre-wrap",
                         overflowWrap: "break-word",
-                        marginBottom: "4px"
+                        marginBottom: "4px",
+                        textAlign: block.cardStyle?.textAlign || "left"
                       }}
                     >
                       {card.title}
@@ -3091,6 +3860,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                         color: block.cardDescStyle?.textColor || "#666",
                         whiteSpace: "pre-wrap",
                         overflowWrap: "break-word",
+                        textAlign: block.cardStyle?.textAlign || "left"
                       }}
                     >
                       {card.description}
@@ -3181,7 +3951,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
             position: 'relative',
             overflow: 'hidden',
           }}
-          className={!readOnly ? "group" : ""}
+          className={`${!readOnly ? "group" : ""} block-component block-${block.type} block-${block.id}`}
         >
           {/* BG Controls */}
           {!readOnly && (
@@ -3356,7 +4126,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     // ✅ WAVE FOOTER
     if (block?.type === "waveFooter") {
       return (
-        <div style={getCommonStyles(block)} className={!readOnly ? "relative group" : ""}>
+        <div style={getCommonStyles(block)} className={`${!readOnly ? "relative group" : ""} block-component block-${block.type} block-${block.id}`}>
           <div style={readOnly ? { position: 'absolute', top: 0, left: 0, width: '100%', lineHeight: 0, transform: 'translateY(-100%)' } : {}} className={!readOnly ? "absolute top-0 left-0 w-full leading-none transform -translate-y-full" : ""}>
             <svg viewBox="0 0 1440 320" style={readOnly ? { width: '100%', height: 'auto', display: 'block' } : {}} className={!readOnly ? "w-full h-auto block" : ""}>
               <path
@@ -3379,6 +4149,28 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
             )}
           </div>
         </div>
+      );
+    }
+
+    // ✅ INFO BOX
+    if (block?.type === "infoBox") {
+      return (
+        <InfoBoxRenderer
+          block={block}
+          update={update}
+          readOnly={readOnly}
+        />
+      );
+    }
+
+    // ✅ MULTIPLE INFO BOX
+    if (block?.type === "multipleInfoBox") {
+      return (
+        <MultipleInfoBoxRenderer
+          block={block}
+          update={update}
+          readOnly={readOnly}
+        />
       );
     }
 
@@ -3414,7 +4206,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
         e.stopPropagation();
         onSelect?.();
       }}
-      className={`relative cursor-pointer transition-all duration-200 ${isSelected ? 'ring-2 ring-blue-500 rounded-lg shadow-lg z-20' : 'hover:ring-1 hover:ring-blue-100'}`}
+      className={`relative cursor-pointer transition-all duration-200 ${isSelected ? 'ring-2 ring-blue-500 rounded-lg shadow-lg z-20' : 'hover:ring-1 hover:ring-blue-100'} block-component block-${block.type} block-${block.id}`}
     >
       {content}
       {isSelected && (

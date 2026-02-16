@@ -25,15 +25,17 @@ const HolidayTermList = () => {
   };
 
   const handleDelete = (id) => {
-    showConfirm("Are you sure?", "This action will delete the Term Group.", async () => {
-      try {
-        await deleteCampDate(id);
-        showSuccess("Success", "Term Group has been deleted.");
-      } catch (error) {
-        showError("Error", "Failed to delete Term Group.");
+    if (!id) return;
+
+    showConfirm(
+      "Are you sure?",
+      "This action will delete the Term Group.",
+      () => {
+        deleteCampDate(id);
       }
-    });
+    );
   };
+
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
 
