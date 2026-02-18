@@ -60,6 +60,16 @@ const convertHtmlToBlocks = (html) => {
         const width = parseInt(s.borderTopWidth) || 0;
         style.borderTopWidth = width;
         style.topBorderWidth = width; // Alias for renderer
+      } else if (s.borderTop) {
+         // Manual parsing of "4px solid rgb(...)"
+         const parts = s.borderTop.split(" ");
+         if (parts.length >= 1) {
+            const width = parseInt(parts[0]);
+            if (!isNaN(width)) {
+               style.borderTopWidth = width;
+               style.topBorderWidth = width;
+            }
+         }
       }
 
       if (s.border) style.border = s.border;
@@ -168,9 +178,18 @@ const convertHtmlToBlocks = (html) => {
         // 3. Image
         if (type === "image") {
           const img = node.querySelector("img");
+          let imgStyle = {};
+          if (img) {
+             const s = extractStyles(img);
+             // Merge critical image styles that might be on the img tag instead of wrapper
+             if (s.width) imgStyle.width = s.width;
+             if (s.maxWidth) imgStyle.maxWidth = s.maxWidth;
+             if (s.borderRadius) imgStyle.borderRadius = s.borderRadius;
+             if (s.objectFit) imgStyle.objectFit = s.objectFit;
+          }
           return createBlock("image", {
             url: img ? img.getAttribute("src") : "",
-            style: { ...nodeStyle }
+            style: { ...nodeStyle, ...imgStyle }
           });
         }
 
@@ -575,15 +594,31 @@ const convertHtmlToBlocks = (html) => {
                   items.push({ label, value, link: link.getAttribute("href") });
                 }
               } else if (divs.length >= 2) {
-                const label = divs[0].innerText;
-                const value = divs[1].innerHTML;
+                const labelDiv = divs[0];
+                const valueDiv = divs[1];
+                
+                // Extract styles from label/value if needed? 
+                // Currently InfoBoxRenderer uses block-level styles for label/value font size/color.
+                // But if the HTML has specific styles on these divs, we might want to capture them?
+                // For now, let's just ensure we get the content correctly.
+                
+                const label = labelDiv.innerText;
+                const value = valueDiv.innerHTML;
                 items.push({ label, value });
               } else {
                 // Fallback check for basic text content if structure is loose
-                // Maybe split by newline?
-                // Or check for strong/bold
               }
             });
+            
+            // Infer grid columns from table structure
+            if (node.rows.length > 0) {
+               const colCount = node.rows[0].cells.length;
+               if (colCount > 1) {
+                  nodeStyle.display = "grid";
+                  nodeStyle.gridTemplateColumns = `repeat(${colCount}, minmax(0, 1fr))`;
+                  nodeStyle.gap = 16; // Default gap for grid view
+               }
+            }
           } else {
             // DEFAULT / DIV Logic
             // Try to find items by looking for pairs of Label/Value or just text
