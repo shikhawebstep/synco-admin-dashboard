@@ -49,12 +49,23 @@ const convertHtmlToBlocks = (html) => {
       if (s.borderRadius) style.borderRadius = parseInt(s.borderRadius) || 0;
       if (s.fontFamily) style.fontFamily = s.fontFamily.replace(/["']/g, "");
       if (s.lineHeight) style.lineHeight = s.lineHeight;
+
+      // Border Logic
       if (s.borderTop) style.borderTop = s.borderTop;
-      if (s.borderTopColor) style.topBorderColor = s.borderTopColor;
-      if (s.borderTopWidth) style.borderTopWidth = parseInt(s.borderTopWidth) || 0;
+      if (s.borderTopColor) {
+        style.topBorderColor = s.borderTopColor;
+        style.borderTopColor = s.borderTopColor; // Keep both for safety
+      }
+      if (s.borderTopWidth) {
+        const width = parseInt(s.borderTopWidth) || 0;
+        style.borderTopWidth = width;
+        style.topBorderWidth = width; // Alias for renderer
+      }
+
       if (s.border) style.border = s.border;
       if (s.borderColor) style.borderColor = s.borderColor;
       if (s.borderWidth) style.borderWidth = parseInt(s.borderWidth) || 0;
+
       if (s.width) style.width = s.width;
       if (s.height) style.height = s.height;
       if (s.boxShadow) style.boxShadow = s.boxShadow;
@@ -64,7 +75,22 @@ const convertHtmlToBlocks = (html) => {
       if (s.display) style.display = s.display;
       if (s.flexDirection) style.flexDirection = s.flexDirection;
       if (s.gap) style.gap = parseInt(s.gap) || 0;
-      if (s.gridTemplateColumns) style.gridTemplateColumns = s.gridTemplateColumns;
+
+      // Grid Columns Parsing
+      if (s.gridTemplateColumns) {
+        style.gridTemplateColumns = s.gridTemplateColumns;
+        // Try to extract column count from "repeat(2, ...)"
+        const repeatMatch = s.gridTemplateColumns.match(/repeat\((\d+)/);
+        if (repeatMatch) {
+          style.columns = parseInt(repeatMatch[1]);
+        } else {
+          // Count spaces if using manual listing? e.g. "1fr 1fr"
+          // Simple heuristic
+          const parts = s.gridTemplateColumns.split(/\s+/).filter(p => p.trim());
+          if (parts.length > 0) style.columns = parts.length;
+        }
+      }
+
       if (s.alignItems) style.alignItems = s.alignItems;
       if (s.justifyContent) style.justifyContent = s.justifyContent;
     }
@@ -187,49 +213,321 @@ const convertHtmlToBlocks = (html) => {
         // 6. Card Row
         if (type === "cardRow") {
           const cards = [];
-          Array.from(node.children).forEach(child => {
-            const card = {
-              id: crypto.randomUUID(),
-              title: "Card Title",
-              description: "",
-              url: "",
-              link: "",
-              style: extractStyles(child)
-            };
+          const isTable = node.tagName === "TABLE";
 
-            const img = child.querySelector("img");
-            if (img) card.url = img.getAttribute("src");
+          if (isTable) {
+            // Handle Table Format (ReadOnly/Email)
+            // Structure: Outer Table -> tr -> td -> Inner Table (Card)
+            const innerTables = Array.from(node.querySelectorAll("td > table"));
+            innerTables.forEach(cardTable => {
+              const card = {
+                id: crypto.randomUUID(),
+                title: "Card Title",
+                description: "",
+                url: "",
+                link: "",
+                style: extractStyles(cardTable)
+              };
 
-            const title = child.querySelector("h1, h2, h3, h4, h5, strong") ||
-              (child.querySelector(".font-bold") && child.querySelector("div")) || // Fallback for simple divs
-              child.querySelector("div"); // Ultimate fallback
+              const img = cardTable.querySelector("img");
+              if (img) card.url = img.getAttribute("src");
 
-            // Refined Title Logic: Try to find the most likely title element
-            if (child.querySelector("h4")) card.title = child.querySelector("h4").innerText;
-            else if (child.querySelector("strong")) card.title = child.querySelector("strong").innerText;
-            else if (title && title.innerText.length < 50) card.title = title.innerText;
+              // Link might be wrapping the image or separate
+              const link = cardTable.querySelector("a");
+              if (link) card.link = link.getAttribute("href");
 
-            const desc = child.querySelector("p");
-            if (desc) card.description = desc.innerText;
-            else {
-              // Try to find a div that is NOT the title
-              const divs = Array.from(child.querySelectorAll("div"));
-              const textDiv = divs.find(d => d.innerText !== card.title && d.innerText.length > 5);
-              if (textDiv) card.description = textDiv.innerText;
-            }
+              const title = cardTable.querySelector("h4");
+              if (title) card.title = title.innerText;
 
-            const link = child.querySelector("a");
-            if (link) card.link = link.getAttribute("href");
+              const desc = cardTable.querySelector("p");
+              if (desc) card.description = desc.innerText;
 
-            cards.push(card);
-          });
+              cards.push(card);
+            });
+          } else {
+            // Handle Div Format (Editor)
+            Array.from(node.children)
+              .filter(child => child.tagName !== "BUTTON" && !child.classList.contains("z-30") && !child.classList.contains("absolute") && !child.classList.contains("group/edit")) // Filter out UI elements
+              .forEach(child => {
+                const card = {
+                  id: crypto.randomUUID(),
+                  title: "Card Title",
+                  description: "",
+                  url: "",
+                  link: "",
+                  style: extractStyles(child)
+                };
+
+                const img = child.querySelector("img");
+                if (img) card.url = img.getAttribute("src");
+
+                const title = child.querySelector("h1, h2, h3, h4, h5, strong") ||
+                  (child.querySelector(".font-bold") && child.querySelector("div")) || // Fallback for simple divs
+                  child.querySelector("div"); // Ultimate fallback
+
+                // Refined Title Logic: Try to find the most likely title element
+                if (child.querySelector("h4")) card.title = child.querySelector("h4").innerText;
+                else if (child.querySelector("strong")) card.title = child.querySelector("strong").innerText;
+                else if (title && title.innerText.length < 50) card.title = title.innerText;
+
+                const desc = child.querySelector("p");
+                if (desc) card.description = desc.innerText;
+                else {
+                  // Try to find a div that is NOT the title
+                  const divs = Array.from(child.querySelectorAll("div"));
+                  const textDiv = divs.find(d => d.innerText !== card.title && d.innerText.length > 5);
+                  if (textDiv) card.description = textDiv.innerText;
+                }
+
+                const link = child.querySelector("a");
+                if (link) card.link = link.getAttribute("href");
+
+                cards.push(card);
+              });
+          }
 
           if (cards.length > 0) {
+            // Persistence Logic
+            let cardStyle = {};
+            let cardImageStyle = {};
+            let cardTitleStyle = {};
+            let cardDescStyle = {};
+            let columns = Math.min(cards.length, 3);
+
+            if (node.dataset.columns) {
+              columns = parseInt(node.dataset.columns);
+            } else if (nodeStyle.columns) {
+              // Fallback: Use columns parsed from grid-template-columns in extractStyles
+              columns = nodeStyle.columns;
+            }
+            if (node.dataset.cardStyle) {
+              try { cardStyle = JSON.parse(node.dataset.cardStyle); } catch (e) { }
+            } else if (cards.length > 0) {
+              // Infer Card Style from first card
+              // We want to capture the card's specific styles (bg, border, radius, shadow)
+              // cards[0].style already contains extracted styles
+              const s = cards[0].style || {};
+              if (s.backgroundColor) cardStyle.backgroundColor = s.backgroundColor;
+              if (s.borderRadius) cardStyle.borderRadius = s.borderRadius;
+              if (s.border) cardStyle.border = s.border;
+              if (s.borderColor) cardStyle.borderColor = s.borderColor;
+              if (s.boxShadow) cardStyle.boxShadow = s.boxShadow;
+              if (s.textAlign) cardStyle.textAlign = s.textAlign;
+              if (s.padding) cardStyle.padding = s.padding;
+            }
+
+            if (node.dataset.cardImageStyle) {
+              try { cardImageStyle = JSON.parse(node.dataset.cardImageStyle); } catch (e) { }
+            } else if (cards.length > 0) {
+              // Infer Image Style from first card
+              // We need to find the img tag inside the first card's structure used for parsing
+              // Since `cards` only has extracted data, we look at the original node's children?
+              // Actually, `cards` extraction logic didn't save the raw DOM node.
+              // We should use the DOM traversal logic used up above.
+              // Re-finding the first card's element:
+              const firstCardNode = isTable
+                ? node.querySelector("td > table")
+                : Array.from(node.children).find(child => child.tagName !== "BUTTON" && !child.classList.contains("z-30"));
+
+              if (firstCardNode) {
+                const img = firstCardNode.querySelector("img");
+                if (img) {
+                  const imgStyle = extractStyles(img);
+                  if (imgStyle.width) cardImageStyle.width = imgStyle.width;
+                  if (imgStyle.height) cardImageStyle.height = imgStyle.height;
+                  if (imgStyle.borderRadius) cardImageStyle.borderRadius = imgStyle.borderRadius;
+                  if (imgStyle.objectFit) cardImageStyle.objectFit = imgStyle.objectFit;
+                  if (imgStyle.marginBottom) cardImageStyle.marginBottom = imgStyle.marginBottom;
+                }
+
+                const title = firstCardNode.querySelector("h4") || firstCardNode.querySelector("strong") || firstCardNode.querySelector("h1, h2, h3, h5");
+                if (title) {
+                  const tStyle = extractStyles(title);
+                  if (tStyle.textColor) cardTitleStyle.textColor = tStyle.textColor;
+                  if (tStyle.fontSize) cardTitleStyle.fontSize = tStyle.fontSize;
+                  if (tStyle.fontWeight) cardTitleStyle.fontWeight = tStyle.fontWeight;
+                }
+
+                const desc = firstCardNode.querySelector("p");
+                if (desc) {
+                  const dStyle = extractStyles(desc);
+                  if (dStyle.textColor) cardDescStyle.textColor = dStyle.textColor;
+                  if (dStyle.fontSize) cardDescStyle.fontSize = dStyle.fontSize;
+                }
+              }
+            }
+
+            if (node.dataset.cardTitleStyle) {
+              try { cardTitleStyle = JSON.parse(node.dataset.cardTitleStyle); } catch (e) { }
+            }
+            if (node.dataset.cardDescStyle) {
+              try { cardDescStyle = JSON.parse(node.dataset.cardDescStyle); } catch (e) { }
+            }
+
             return createBlock("cardRow", {
               cards,
-              style: { ...nodeStyle, display: "flex", gap: 20, columns: Math.min(cards.length, 4) }
+              style: { ...nodeStyle, display: "flex", gap: 20, columns },
+              cardStyle,
+              cardImageStyle,
+              cardTitleStyle,
+              cardDescStyle
             });
           }
+        }
+
+        // 7. Multiple Info Box
+        if (type === "multipleInfoBox") {
+          const boxes = [];
+          // Look for table structure (readOnly) or div structure (editor fallback)
+          const isTable = node.tagName === "TABLE";
+
+          let columns = "auto";
+          if (isTable) {
+            // Updated Logic: Iterate through rows and cells to find DIRECT child tables
+            const rows = Array.from(node.rows);
+            // Infer columns from the first row's cell count
+            if (rows.length > 0) {
+              columns = rows[0].cells.length;
+            }
+
+            rows.forEach(row => {
+              Array.from(row.cells).forEach(cell => {
+                // Find the first table that is a direct child (or close to it)
+                // This avoids selecting nested tables deeper in the hierarchy
+                let boxTable = null;
+                for (let i = 0; i < cell.children.length; i++) {
+                  if (cell.children[i].tagName === "TABLE") {
+                    boxTable = cell.children[i];
+                    break;
+                  }
+                }
+
+                // Fallback: If no direct child table, try querySelector but only first level if possible
+                if (!boxTable) {
+                  boxTable = cell.querySelector("table");
+                }
+
+                if (boxTable) {
+                  const box = {
+                    id: crypto.randomUUID(),
+                    title: "Box Title",
+                    items: [],
+                    style: extractStyles(boxTable)
+                  };
+
+                  const titleEl = boxTable.querySelector("h4");
+                  if (titleEl) box.title = titleEl.innerText;
+
+                  const itemRows = Array.from(boxTable.querySelectorAll("td[valign='top']"));
+                  itemRows.forEach(td => {
+                    const labelEl = td.querySelector("div:first-child");
+                    const valueEl = td.querySelector("div:last-child");
+                    if (labelEl && valueEl) {
+                      box.items.push({
+                        label: labelEl.innerText,
+                        value: valueEl.innerHTML
+                      });
+                    }
+                  });
+                  boxes.push(box);
+                }
+              });
+            });
+          } else {
+            // Handle Div Format (Editor)
+            // Structure: .block-multipleInfoBox > .group/box (divs)
+            const boxDivs = Array.from(node.children);
+
+            // Infer grid columns from style if available (editor might set grid-template-columns)
+            if (nodeStyle.columns) columns = nodeStyle.columns;
+            else if (nodeStyle.gridTemplateColumns) {
+              const match = nodeStyle.gridTemplateColumns.match(/repeat\((\d+)/);
+              if (match) columns = parseInt(match[1]);
+            }
+
+            boxDivs.forEach(boxDiv => {
+              const box = {
+                id: crypto.randomUUID(),
+                title: "Box Title",
+                items: [],
+                style: extractStyles(boxDiv)
+              };
+
+              const titleEl = boxDiv.querySelector("h4");
+              if (titleEl) box.title = titleEl.innerText;
+
+              // Items in editor are usually inputs, but when parsing HTML we see the rendered DOM
+              // Editor structure: div > div (gap-1) > input (label) + input (value)
+              const itemDivs = Array.from(boxDiv.querySelectorAll(".gap-1"));
+
+              itemDivs.forEach(itemDiv => {
+                const inputs = itemDiv.querySelectorAll("input");
+                const textarea = itemDiv.querySelector("textarea");
+
+                let label = "";
+                let value = "";
+
+                if (inputs.length > 0) label = inputs[0].value || inputs[0].getAttribute("value");
+                if (textarea) value = textarea.value || textarea.innerText || textarea.getAttribute("value");
+
+                // Fallback to text content if inputs aren't populated in DOM string
+                if (!label && itemDiv.children[0]) label = itemDiv.children[0].innerText;
+                if (!value && itemDiv.children[1]) value = itemDiv.children[1].innerText;
+
+                // Clean up button text "x"
+                if (label === "×") label = "";
+
+                if (label || value) {
+                  box.items.push({ label, value });
+                }
+              });
+
+              boxes.push(box);
+            });
+          }
+
+          if (boxes.length > 0) {
+            return createBlock("multipleInfoBox", {
+              boxes,
+              style: { ...nodeStyle, columns: columns !== "auto" ? parseInt(columns) : "auto" }
+            });
+          }
+        }
+
+        // 8. Footer Block
+        if (type === "footerBlock") {
+          const footerData = {
+            title: "",
+            subtitle: "",
+            copyright: "",
+            links: [],
+            logoUrl: "",
+            style: { ...nodeStyle, backgroundColor: nodeStyle.backgroundColor || "#062375", textColor: "#ffffff" }
+          };
+
+          const img = node.querySelector("img");
+          if (img) footerData.logoUrl = img.getAttribute("src");
+
+          const title = node.querySelector("h3");
+          if (title) footerData.title = title.innerText;
+
+          const paragraphs = Array.from(node.querySelectorAll("p"));
+          if (paragraphs.length > 0) footerData.subtitle = paragraphs[0].innerText;
+          if (paragraphs.length > 1) footerData.copyright = paragraphs[paragraphs.length - 1].innerText;
+
+          const links = Array.from(node.querySelectorAll("a"));
+          links.forEach(link => {
+            const href = link.getAttribute("href") || "#";
+            let platform = "globe";
+            if (href.includes("facebook")) platform = "facebook";
+            if (href.includes("instagram")) platform = "instagram";
+            if (href.includes("twitter")) platform = "twitter";
+            if (href.includes("linkedin")) platform = "linkedin";
+
+            footerData.links.push({ platform, url: href });
+          });
+
+          return createBlock("footerBlock", footerData);
         }
 
         // Fallback for other known types if content is simple
@@ -633,11 +931,32 @@ const convertHtmlToBlocks = (html) => {
     }
 
     // 2. Card Row Detection
-    if (node.classList.contains("card-row")) {
+    if (node.classList.contains("card-row") || node.classList.contains("block-cardRow")) {
       const cards = [];
-      const children = Array.from(node.children);
+      // Handle both Div (flex) and Table structure
+      let itemNodes = [];
+      if (node.tagName === "TABLE") {
+        // Table > tbody > tr > td
+        const rows = Array.from(node.rows);
+        rows.forEach(row => {
+          Array.from(row.cells).forEach(cell => itemNodes.push(cell));
+        });
+      } else {
+        // DIV
+        itemNodes = Array.from(node.children);
+      }
 
-      children.forEach(child => {
+      itemNodes.forEach(child => {
+        // Skip non-element nodes or utility divs
+        if (child.tagName === "BUTTON") return;
+
+        // Extract card data...
+        // If it's a wrapper div (e.g. column or generic wrapper), look inside
+        // Editor output: div.relative.group (the card container)
+        // ReadOnly output: td > table > tr > td... complex. 
+        // Let's assume generic extraction works for now or refine.
+
+        // For editor "div" structure, child is the card container.
         const card = {
           id: crypto.randomUUID(),
           title: "Card Title",
@@ -647,25 +966,58 @@ const convertHtmlToBlocks = (html) => {
           style: extractStyles(child)
         };
 
+        // Try recursive find?
         const img = child.querySelector("img");
         if (img) card.url = img.getAttribute("src");
 
-        const title = child.querySelector("h1, h2, h3, h4, h5, strong");
-        if (title) card.title = title.innerText;
+        const title = child.querySelector("h1, h2, h3, h4, h5, strong, textarea"); // Textarea for editor inputs
+        if (title) card.title = title.value || title.innerText;
 
-        const desc = child.querySelector("p");
-        if (desc) card.description = desc.innerText;
+        const desc = child.querySelector("p, textarea:nth-of-type(2)");
+        if (desc) card.description = desc.value || desc.innerText;
 
         const link = child.querySelector("a");
         if (link) card.link = link.getAttribute("href");
+
+        // Input fallback
+        const linkInput = child.querySelector("input[placeholder*='link']");
+        if (linkInput) card.link = linkInput.value;
+
+        // Skip empty cards/placeholders
+        if (!card.title && !card.url && !card.description) return;
 
         cards.push(card);
       });
 
       if (cards.length > 0) {
+        // Parse persistent data attributes if available
+        let cardStyle = {};
+        let cardImageStyle = {};
+        let cardTitleStyle = {};
+        let cardDescStyle = {};
+        let columns = Math.min(cards.length, 3);
+
+        if (node.dataset.columns) columns = parseInt(node.dataset.columns);
+        if (node.dataset.cardStyle) {
+          try { cardStyle = JSON.parse(node.dataset.cardStyle); } catch (e) { }
+        }
+        if (node.dataset.cardImageStyle) {
+          try { cardImageStyle = JSON.parse(node.dataset.cardImageStyle); } catch (e) { }
+        }
+        if (node.dataset.cardTitleStyle) {
+          try { cardTitleStyle = JSON.parse(node.dataset.cardTitleStyle); } catch (e) { }
+        }
+        if (node.dataset.cardDescStyle) {
+          try { cardDescStyle = JSON.parse(node.dataset.cardDescStyle); } catch (e) { }
+        }
+
         return createBlock("cardRow", {
           cards,
-          style: { ...nodeStyle, display: "flex", gap: 20, columns: Math.min(cards.length, 4) }
+          style: { ...nodeStyle, display: "flex", gap: 20, columns },
+          cardStyle,
+          cardImageStyle,
+          cardTitleStyle,
+          cardDescStyle
         });
       }
     }
@@ -1013,7 +1365,7 @@ const getCommonStyles = (b) => {
     backgroundPosition: s.backgroundPosition || "center",
     borderRadius: parseUnit(s.borderRadius),
     border: s.border || (s.borderWidth ? `${s.borderWidth}px ${s.borderStyle || "solid"} ${s.borderColor || "transparent"}` : undefined),
-    borderTop: s.borderTop || (s.topBorderColor ? `${s.borderTopWidth || 4}px solid ${s.topBorderColor}` : undefined),
+    borderTop: s.borderTop || ((s.topBorderColor || s.borderTopWidth) ? `${s.borderTopWidth || 4}px solid ${s.topBorderColor || "#000000"}` : undefined),
     display: s.display || "block",
     flexDirection: s.flexDirection,
     flexWrap: s.flexWrap || "wrap",
@@ -1584,14 +1936,14 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
         </>
       )}
 
-      {(targetBlock?.type === "cardRow" || targetBlock?.type === "multipleInfoBox") && (
-        <Section id="cardStyle" title={targetBlock.type === "multipleInfoBox" ? "Unit Style" : "Card Style"} icon={<FaBorderAll />}>
+      {(targetBlock?.type === "cardRow" || targetBlock?.type === "multipleInfoBox" || targetBlock?.type === "infoBox") && (
+        <Section id="cardStyle" title={targetBlock.type === "multipleInfoBox" ? "Unit Style" : (targetBlock.type === "infoBox" ? "Info Box Style" : "Card Style")} icon={<FaBorderAll />}>
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">{targetBlock.type === "multipleInfoBox" ? "Unit BG" : "Card BG"}</label>
+            <label className="text-[10px] font-bold text-gray-400 uppercase">{targetBlock.type === "multipleInfoBox" ? "Unit BG" : "Background"}</label>
             <input
               type="color"
-              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.backgroundColor || "#ffffff") : (targetBlock.cardStyle?.backgroundColor || "#ffffff")}
-              onChange={(e) => updateStyle("backgroundColor", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : "cardStyle")}
+              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.backgroundColor || "#ffffff") : (targetBlock.type === "infoBox" ? (targetBlock.style?.backgroundColor || "#f3f4f6") : (targetBlock.cardStyle?.backgroundColor || "#ffffff"))}
+              onChange={(e) => updateStyle("backgroundColor", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : (targetBlock.type === "infoBox" ? null : "cardStyle"))}
               className="w-8 h-8 rounded border-none p-0 cursor-pointer"
             />
           </div>
@@ -1613,24 +1965,24 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
           )}
 
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">Padding ({targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.padding || 20) : (targetBlock.cardStyle?.padding || 16)}px)</label>
+            <label className="text-[10px] font-bold text-gray-400 uppercase">Padding ({targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.padding || 20) : (targetBlock.type === "infoBox" ? (targetBlock.style?.padding || 20) : (targetBlock.cardStyle?.padding || 16))}px)</label>
             <input
               type="range"
               min="0"
               max="100"
-              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.padding || 20) : (targetBlock.cardStyle?.padding || 16)}
-              onChange={(e) => updateStyle("padding", parseInt(e.target.value), targetBlock.type === "multipleInfoBox" ? "boxStyle" : "cardStyle")}
+              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.padding || 20) : (targetBlock.type === "infoBox" ? (targetBlock.style?.padding || 20) : (targetBlock.cardStyle?.padding || 16))}
+              onChange={(e) => updateStyle("padding", parseInt(e.target.value), targetBlock.type === "multipleInfoBox" ? "boxStyle" : (targetBlock.type === "infoBox" ? null : "cardStyle"))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">Radius ({targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderRadius || 12) : (targetBlock.cardStyle?.borderRadius || 12)}px)</label>
+            <label className="text-[10px] font-bold text-gray-400 uppercase">Radius ({targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderRadius || 12) : (targetBlock.type === "infoBox" ? (targetBlock.style?.borderRadius || 12) : (targetBlock.cardStyle?.borderRadius || 12))}px)</label>
             <input
               type="range"
               min="0"
               max="100"
-              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderRadius || 12) : (targetBlock.cardStyle?.borderRadius || 12)}
-              onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value), targetBlock.type === "multipleInfoBox" ? "boxStyle" : "cardStyle")}
+              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderRadius || 12) : (targetBlock.type === "infoBox" ? (targetBlock.style?.borderRadius || 12) : (targetBlock.cardStyle?.borderRadius || 12))}
+              onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value), targetBlock.type === "multipleInfoBox" ? "boxStyle" : (targetBlock.type === "infoBox" ? null : "cardStyle"))}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
             />
           </div>
@@ -1638,13 +1990,13 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
             <label className="text-[10px] font-bold text-gray-400 uppercase">Border Color</label>
             <input
               type="color"
-              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderColor || "#eeeeee") : (targetBlock.cardStyle?.borderColor || "#eeeeee")}
-              onChange={(e) => updateStyle("borderColor", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : "cardStyle")}
+              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderColor || "#eeeeee") : (targetBlock.type === "infoBox" ? (targetBlock.style?.borderColor || "#eeeeee") : (targetBlock.cardStyle?.borderColor || "#eeeeee"))}
+              onChange={(e) => updateStyle("borderColor", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : (targetBlock.type === "infoBox" ? null : "cardStyle"))}
               className="w-8 h-8 rounded border-none p-0 cursor-pointer"
             />
           </div>
 
-          {targetBlock.type === "multipleInfoBox" && (
+          {(targetBlock.type === "multipleInfoBox" || targetBlock.type === "infoBox") && (
             <>
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-bold text-gray-400 uppercase">Border Width</label>
@@ -1652,8 +2004,8 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
                   type="range"
                   min="0"
                   max="10"
-                  value={targetBlock.boxStyle?.borderWidth || 0}
-                  onChange={(e) => updateStyle("borderWidth", parseInt(e.target.value), "boxStyle")}
+                  value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderWidth || 0) : (targetBlock.style?.borderWidth || 0)}
+                  onChange={(e) => updateStyle("borderWidth", parseInt(e.target.value), targetBlock.type === "multipleInfoBox" ? "boxStyle" : null)}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                 />
               </div>
@@ -1663,8 +2015,8 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
                   type="range"
                   min="0"
                   max="20"
-                  value={targetBlock.boxStyle?.topBorderWidth || 0}
-                  onChange={(e) => updateStyle("topBorderWidth", parseInt(e.target.value), "boxStyle")}
+                  value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.topBorderWidth || 0) : (targetBlock.style?.topBorderWidth || 0)}
+                  onChange={(e) => updateStyle("topBorderWidth", parseInt(e.target.value), targetBlock.type === "multipleInfoBox" ? "boxStyle" : null)}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                 />
               </div>
@@ -1672,34 +2024,38 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
                 <label className="text-[10px] font-bold text-gray-400 uppercase">Top Border Color</label>
                 <input
                   type="color"
-                  value={targetBlock.boxStyle?.topBorderColor || "#10b981"}
-                  onChange={(e) => updateStyle("topBorderColor", e.target.value, "boxStyle")}
+                  value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.topBorderColor || "#10b981") : (targetBlock.style?.topBorderColor || "#10b981")}
+                  onChange={(e) => updateStyle("topBorderColor", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : null)}
                   className="w-8 h-8 rounded border-none p-0 cursor-pointer"
                 />
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Separator Color</label>
-                <input
-                  type="color"
-                  value={targetBlock.boxStyle?.separatorColor || "#e5e7eb"}
-                  onChange={(e) => updateStyle("separatorColor", e.target.value, "boxStyle")}
-                  className="w-8 h-8 rounded border-none p-0 cursor-pointer"
-                />
-              </div>
-              <div className="col-span-2 flex items-center gap-2 mt-1">
-                <input
-                  type="checkbox"
-                  id="showSeparators"
-                  checked={targetBlock.boxStyle?.showSeparators || false}
-                  onChange={(e) => updateStyle("showSeparators", e.target.checked, "boxStyle")}
-                  className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                />
-                <label htmlFor="showSeparators" className="text-[10px] font-bold text-gray-400 uppercase cursor-pointer">Show Vertical Separators</label>
-              </div>
+              {targetBlock.type === "multipleInfoBox" && (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase">Separator Color</label>
+                    <input
+                      type="color"
+                      value={targetBlock.boxStyle?.separatorColor || "#e5e7eb"}
+                      onChange={(e) => updateStyle("separatorColor", e.target.value, "boxStyle")}
+                      className="w-8 h-8 rounded border-none p-0 cursor-pointer"
+                    />
+                  </div>
+                  <div className="col-span-2 flex items-center gap-2 mt-1">
+                    <input
+                      type="checkbox"
+                      id="showSeparators"
+                      checked={targetBlock.boxStyle?.showSeparators || false}
+                      onChange={(e) => updateStyle("showSeparators", e.target.checked, "boxStyle")}
+                      className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                    />
+                    <label htmlFor="showSeparators" className="text-[10px] font-bold text-gray-400 uppercase cursor-pointer">Show Vertical Separators</label>
+                  </div>
+                </>
+              )}
             </>
           )}
 
-          {targetBlock.type !== "multipleInfoBox" && (
+          {targetBlock.type !== "multipleInfoBox" && targetBlock.type !== "infoBox" && (
             <div className="flex flex-col gap-1">
               <label className="text-[10px] font-bold text-gray-400 uppercase">Card Min Width</label>
               <input
@@ -1716,8 +2072,8 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
             <input
               type="text"
               placeholder="e.g. 0 4px 10px rgba(0,0,0,0.1)"
-              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.boxShadow || "") : (targetBlock.cardStyle?.boxShadow || "")}
-              onChange={(e) => updateStyle("boxShadow", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : "cardStyle")}
+              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.boxShadow || "") : (targetBlock.type === "infoBox" ? (targetBlock.style?.boxShadow || "") : (targetBlock.cardStyle?.boxShadow || ""))}
+              onChange={(e) => updateStyle("boxShadow", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : (targetBlock.type === "infoBox" ? null : "cardStyle"))}
               className="text-xs border rounded p-1 w-full h-8"
             />
           </div>
@@ -2002,6 +2358,30 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
           <label className="text-[10px] font-bold text-gray-400 uppercase">Border Width</label>
           <input type="range" min="0" max="20" value={targetBlock?.style?.borderWidth || 0} onChange={(e) => updateStyle("borderWidth", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
         </div>
+
+        {/* Top Border Controls (Requested for InfoBox) */}
+        <div className="col-span-2 flex flex-col gap-1 border-t border-gray-100 pt-2 mt-1">
+          <label className="text-[10px] font-bold text-gray-400 uppercase">Top Border</label>
+          <div className="flex gap-2 items-center">
+            <input
+              type="color"
+              value={targetBlock?.style?.topBorderColor || "#000000"}
+              onChange={(e) => updateStyle("topBorderColor", e.target.value)}
+              className="w-8 h-8 rounded border-none p-0 cursor-pointer"
+              title="Top Border Color"
+            />
+            <input
+              type="range"
+              min="0"
+              max="20"
+              value={targetBlock?.style?.borderTopWidth || 0}
+              onChange={(e) => updateStyle("borderTopWidth", parseInt(e.target.value))}
+              className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+              title={`Width: ${targetBlock?.style?.borderTopWidth || 0}px`}
+            />
+            <span className="text-[10px] text-gray-400 w-8 text-right">{targetBlock?.style?.borderTopWidth || 0}px</span>
+          </div>
+        </div>
         <div className="col-span-2 flex flex-col gap-1">
           <label className="text-[10px] font-bold text-gray-400 uppercase">Box Shadow</label>
           <input type="text" placeholder="e.g. 0 4px 6px rgba(0,0,0,0.1)" value={targetBlock?.style?.boxShadow || ""} onChange={(e) => updateStyle("boxShadow", e.target.value)} className="text-xs border rounded p-1 w-full h-8" />
@@ -2239,7 +2619,7 @@ const FooterBlockRenderer = ({ block, update, readOnly, isSelected, onSelect }) 
         </div>
 
         {/* 3. Social Icons */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-shrink-0">
           {(block.links || [
             { platform: 'facebook', url: '#' },
             { platform: 'instagram', url: '#' },
@@ -2265,7 +2645,7 @@ const FooterBlockRenderer = ({ block, update, readOnly, isSelected, onSelect }) 
                   {Icon && <Icon size={12} />}
                 </a>
                 {!readOnly && (
-                  <div className="absolute -top-24 left-1/2 -translate-x-1/2 hidden group-hover/social:flex flex-col gap-1 bg-white p-2 border rounded shadow-2xl z-50 w-32 scale-75 origin-bottom">
+                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-50 hidden group-hover/social:flex flex-col gap-1 bg-white p-2 border rounded shadow-2xl z-50 w-32 scale-75 origin-bottom">
                     <select
                       className="text-[10px] border p-1 rounded text-gray-700"
                       value={social.platform}
@@ -2363,17 +2743,36 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
     backgroundColor: style.backgroundColor || "#f3f4f6",
   };
 
+  // Border Logic
   if (!style.borderRadius) containerStyle.borderRadius = "16px";
   if (!style.padding) containerStyle.padding = "20px";
   if (!style.gap) containerStyle.gap = "16px";
   if (!style.display) containerStyle.display = "flex";
-  if (!style.border && !style.borderWidth) containerStyle.border = "1px solid #e5e7eb";
+
+  // Consolidate border styles
+  const hasExplicitTopWidth = style.borderTopWidth !== undefined || style.topBorderWidth !== undefined;
+  const borderTopWidth = hasExplicitTopWidth
+    ? (style.borderTopWidth !== undefined ? style.borderTopWidth : style.topBorderWidth)
+    : 0;
+
+  const borderTopColor = style.topBorderColor || style.borderTopColor || style.borderColor || "#e5e7eb";
+
+  // Default border if no specific border is set (and no top border preference)
+  if (!containerStyle.border && !hasExplicitTopWidth) {
+    containerStyle.border = "1px solid #e5e7eb";
+  }
+
+  // Define Styles for Items
+  const itemStyle = {
+    // ... (unchanged)
+  };
 
   return (
     <div
       className={`block-component block-${block.type} block-${block.id}`}
       style={{
         ...containerStyle,
+        borderTop: hasExplicitTopWidth ? `${borderTopWidth}px solid ${borderTopColor}` : containerStyle.borderTop,
         display: style.display || "flex",
         flexWrap: "wrap",
         flexDirection: style.flexDirection || "column",
@@ -2508,7 +2907,7 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
 
 const MultipleInfoBoxRenderer = ({ block, update, readOnly }) => {
   const style = block.style || {};
-  const boxStyle = block.boxStyle || {};
+  const globalBoxStyle = block.boxStyle || {};
 
   const isGrid = style.display === "grid";
   const isFlex = style.display === "flex";
@@ -2517,7 +2916,7 @@ const MultipleInfoBoxRenderer = ({ block, update, readOnly }) => {
     ...getCommonStyles(block),
     display: style.display || "grid",
     // Grid Props
-    gridTemplateColumns: isGrid ? `repeat(${style.columns || 1}, minmax(0, 1fr))` : undefined,
+    gridTemplateColumns: isGrid ? (style.gridTemplateColumns || `repeat(${style.columns || 1}, minmax(0, 1fr))`) : undefined,
     gap: style.gap ? `${style.gap}px` : "16px",
     // Flex Props
     flexDirection: isFlex ? (style.flexDirection || "row") : undefined,
@@ -2572,167 +2971,158 @@ const MultipleInfoBoxRenderer = ({ block, update, readOnly }) => {
     update("boxes", (block.boxes || []).filter(b => b.id !== boxId));
   };
 
+
+
   return (
     <div
       className={`block-component block-${block.type} block-${block.id}`}
       style={containerStyle}
     >
-      {(block.boxes || []).map((box) => (
-        <div
-          key={box.id}
-          className={!readOnly ? "relative group/box" : ""}
-          style={{
-            backgroundColor: boxStyle.backgroundColor || "#ffffff",
-            borderRadius: parseUnit(boxStyle.borderRadius) || "12px",
-            padding: parseUnit(boxStyle.padding) || "20px",
-            boxShadow: boxStyle.boxShadow || "0 2px 4px rgba(0,0,0,0.05)",
-            border: boxStyle.border || (boxStyle.borderWidth ? `${boxStyle.borderWidth}px solid ${boxStyle.borderColor || "#eee"}` : "1px solid #eee"),
-            borderTop: boxStyle.topBorderWidth ? `${boxStyle.topBorderWidth}px solid ${boxStyle.topBorderColor || boxStyle.borderColor || "#10b981"}` : undefined,
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-            textAlign: boxStyle.textAlign || "left",
-            width: isFlex ? (style.flexDirection === "column" ? "100%" : undefined) : undefined,
-            flex: isFlex ? "1 1 0px" : undefined, // Distribute evenly in flex
-          }}
-        >
-          {/* Controls */}
-          {!readOnly && (
-            <div className="absolute -top-3 -right-3 flex gap-1 z-10 opacity-0 group-hover/box:opacity-100 transition">
-              <button
-                className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-blue-600 shadow-lg"
-                onClick={(e) => { e.stopPropagation(); duplicateBox(box.id); }}
-                title="Duplicate Box"
-              >
-                <FaCopy size={8} />
-              </button>
-              <button
-                className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-600 shadow-lg"
-                onClick={(e) => { e.stopPropagation(); removeBox(box.id); }}
-              >
-                ×
-              </button>
-            </div>
-          )}
+      {(block.boxes || []).map((box) => {
+        // Merge individual box styles with global box styles for editor too
+        const boxStyle = { ...globalBoxStyle, ...(box.style || {}) };
+        // Border Logic Correction
+        const borderTopWidth = boxStyle.borderTopWidth !== undefined ? boxStyle.borderTopWidth : boxStyle.topBorderWidth;
+        const borderTopColor = boxStyle.borderTopColor || boxStyle.topBorderColor || boxStyle.borderColor || "#10b981";
+        const hasTopBorder = borderTopWidth !== undefined && borderTopWidth > 0;
 
-          {/* Title */}
-          {readOnly ? (
-            <h4 style={{
-              margin: 0,
-              fontSize: boxStyle.titleFontSize ? `${boxStyle.titleFontSize}px` : "18px",
-              fontWeight: 800,
-              color: boxStyle.titleColor || "#111827"
-            }}>
-              {box.title}
-            </h4>
-          ) : (
-            <input
-              className="w-full bg-transparent outline-none font-bold text-lg border-b border-dashed border-gray-100 pb-1"
-              value={box.title}
-              onChange={(e) => updateBox(box.id, "title", e.target.value)}
-              placeholder="Box Title"
-              style={{ color: boxStyle.titleColor || "#111827" }}
-            />
-          )}
-
-          {/* Items */}
+        return (
           <div
-            className="grid gap-3"
+            key={box.id}
+            className={!readOnly ? "relative group/box" : ""}
             style={{
-              gridTemplateColumns: `repeat(${boxStyle.columns || 1}, 1fr)`,
+              backgroundColor: boxStyle.backgroundColor,
+              borderRadius: parseUnit(boxStyle.borderRadius) || "12px",
+              padding: parseUnit(boxStyle.padding) || "20px",
+              boxShadow: boxStyle.boxShadow || "0 2px 4px rgba(0,0,0,0.05)",
+              border: boxStyle.border || (boxStyle.borderWidth ? `${boxStyle.borderWidth}px solid ${boxStyle.borderColor || "#eee"}` : "1px solid #eee"),
+              borderTop: hasTopBorder ? `${borderTopWidth}px solid ${borderTopColor}` : undefined,
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              textAlign: boxStyle.textAlign || "left",
+              width: isFlex ? (style.flexDirection === "column" ? "100%" : undefined) : undefined,
+              flex: isFlex ? "1 1 0px" : undefined, // Distribute evenly in flex
             }}
           >
-            {(box.items || []).map((item, idx) => {
-              // Calculate Separator Logic
-              const cols = boxStyle.columns || 1;
-              const isLastInRow = (idx + 1) % cols === 0;
-              const isLastItem = idx === (box.items || []).length - 1;
-              const showSeparator = boxStyle.showSeparators && !isLastInRow && !isLastItem;
-
-              return (
-                <div
-                  key={idx}
-                  className={!readOnly
-                    ? `relative group/item gap-1 ${boxStyle.itemLayout === 'inline' ? 'flex flex-row justify-between items-center' : 'flex flex-col'}`
-                    : `gap-1 ${boxStyle.itemLayout === 'inline' ? 'flex flex-row justify-between items-center' : 'flex flex-col'}`
-                  }
-                  style={{
-                    borderRight: showSeparator ? `1px solid ${boxStyle.separatorColor || "#e5e7eb"}` : undefined,
-                    paddingRight: showSeparator ? "16px" : undefined,
-                    marginRight: showSeparator ? "0px" : undefined
-                  }}
-                >
-                  {!readOnly && (
-                    <button
-                      onClick={() => {
-                        const newItems = (box.items || []).filter((_, i) => i !== idx);
-                        updateBox(box.id, "items", newItems);
-                      }}
-                      className="absolute -right-2 top-0 text-red-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition"
-                    >
-                      ×
-                    </button>
-                  )}
-                  {readOnly ? (
-                    <>
-                      <div style={{
-                        fontWeight: 700,
-                        fontSize: "12px",
-                        textTransform: "uppercase",
-                        color: boxStyle.labelColor || "#6b7280",
-                        marginBottom: boxStyle.itemLayout === 'inline' ? "0" : "2px"
-                      }}>{item.label}</div>
-                      <div style={{
-                        fontSize: "14px",
-                        color: boxStyle.valueColor || "#111827",
-                        textAlign: boxStyle.itemLayout === 'inline' ? "right" : "left"
-                      }} dangerouslySetInnerHTML={{ __html: item.value || "" }} />
-                    </>
-                  ) : (
-                    <>
-                      <input
-                        className="text-[10px] font-bold uppercase bg-transparent outline-none"
-                        value={item.label || ""}
-                        onChange={(e) => updateBoxItem(box.id, idx, "label", e.target.value)}
-                        placeholder="Label"
-                        style={{
-                          width: boxStyle.itemLayout === 'inline' ? '40%' : '100%',
-                          color: boxStyle.labelColor || "#6b7280"
-                        }}
-                      />
-                      <VariableTextarea
-                        className="text-sm bg-transparent outline-none resize-none overflow-hidden"
-                        value={item.value || ""}
-                        onChange={(e) => updateBoxItem(box.id, idx, "value", e.target.value)}
-                        placeholder="Value"
-                        showVariables={false}
-                        style={{
-                          width: boxStyle.itemLayout === 'inline' ? '55%' : '100%',
-                          textAlign: boxStyle.itemLayout === 'inline' ? 'right' : 'left',
-                          color: boxStyle.valueColor || "#111827"
-                        }}
-                      />
-                    </>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Add Item Button */}
+            {/* Controls */}
             {!readOnly && (
-              <button
-                onClick={() => {
-                  const newItems = [...(box.items || []), { label: "Label", value: "Value" }];
-                  updateBox(box.id, "items", newItems);
-                }}
-                className="text-xs text-blue-500 hover:text-blue-700 font-bold mt-2 self-start flex items-center gap-1 col-span-full"
-              >
-                <FaPlus size={10} /> Add Item
-              </button>
+              <div className="absolute -top-3 -right-3 flex gap-1 z-10 opacity-0 group-hover/box:opacity-100 transition">
+                <button
+                  className="bg-blue-500 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-blue-600 shadow-lg"
+                  onClick={(e) => { e.stopPropagation(); duplicateBox(box.id); }}
+                  title="Duplicate Box"
+                >
+                  <FaCopy size={8} />
+                </button>
+                <button
+                  className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-600 shadow-lg"
+                  onClick={(e) => { e.stopPropagation(); removeBox(box.id); }}
+                >
+                  ×
+                </button>
+              </div>
             )}
+
+            {/* Items */}
+            <div
+              className="grid gap-3"
+              style={{
+                gridTemplateColumns: `repeat(${boxStyle.columns || 1}, 1fr)`,
+              }}
+            >
+              {(box.items || []).map((item, idx) => {
+                // Calculate Separator Logic
+                const cols = boxStyle.columns || 1;
+                const isLastInRow = (idx + 1) % cols === 0;
+                const isLastItem = idx === (box.items || []).length - 1;
+                const showSeparator = boxStyle.showSeparators && !isLastInRow && !isLastItem;
+
+                return (
+                  <div
+                    key={idx}
+                    className={!readOnly
+                      ? `relative group/item gap-1 ${boxStyle.itemLayout === 'inline' ? 'flex flex-row justify-between items-center' : 'flex flex-col'}`
+                      : `gap-1 ${boxStyle.itemLayout === 'inline' ? 'flex flex-row justify-between items-center' : 'flex flex-col'}`
+                    }
+                    style={{
+                      borderRight: showSeparator ? `1px solid ${boxStyle.separatorColor || "#e5e7eb"}` : undefined,
+                      paddingRight: showSeparator ? "16px" : undefined,
+                      marginRight: showSeparator ? "0px" : undefined
+                    }}
+                  >
+                    {!readOnly && (
+                      <button
+                        onClick={() => {
+                          const newItems = (box.items || []).filter((_, i) => i !== idx);
+                          updateBox(box.id, "items", newItems);
+                        }}
+                        className="absolute -right-2 top-0 text-red-300 hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition"
+                      >
+                        ×
+                      </button>
+                    )}
+                    {readOnly ? (
+                      <>
+                        <div style={{
+                          fontWeight: 700,
+                          fontSize: "12px",
+                          textTransform: "uppercase",
+                          color: boxStyle.labelColor || style.textColor || "#6b7280",
+                          marginBottom: boxStyle.itemLayout === 'inline' ? "0" : "2px"
+                        }}>{item.label}</div>
+                        <div style={{
+                          fontSize: "14px",
+                          color: boxStyle.valueColor || style.textColor || "#111827",
+                          textAlign: boxStyle.itemLayout === 'inline' ? "right" : "left"
+                        }} dangerouslySetInnerHTML={{ __html: item.value || "" }} />
+                      </>
+                    ) : (
+                      <>
+                        <input
+                          className="text-[10px] font-bold uppercase bg-transparent outline-none"
+                          value={item.label || ""}
+                          onChange={(e) => updateBoxItem(box.id, idx, "label", e.target.value)}
+                          placeholder="Label"
+                          style={{
+                            width: boxStyle.itemLayout === 'inline' ? '40%' : '100%',
+                            color: boxStyle.labelColor || style.textColor || "#6b7280"
+                          }}
+                        />
+                        <VariableTextarea
+                          className="text-sm bg-transparent outline-none resize-none overflow-hidden"
+                          value={item.value || ""}
+                          onChange={(e) => updateBoxItem(box.id, idx, "value", e.target.value)}
+                          placeholder="Value"
+                          showVariables={false}
+                          style={{
+                            width: boxStyle.itemLayout === 'inline' ? '55%' : '100%',
+                            textAlign: boxStyle.itemLayout === 'inline' ? 'right' : 'left',
+                            color: boxStyle.valueColor || style.textColor || "#111827"
+                          }}
+                        />
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Add Item Button */}
+              {!readOnly && (
+                <button
+                  onClick={() => {
+                    const newItems = [...(box.items || []), { label: "Label", value: "Value" }];
+                    updateBox(box.id, "items", newItems);
+                  }}
+                  className="text-xs text-blue-500 hover:text-blue-700 font-bold mt-2 self-start flex items-center gap-1 col-span-full"
+                >
+                  <FaPlus size={10} /> Add Item
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Add Box */}
       {!readOnly && (
@@ -2749,6 +3139,143 @@ const MultipleInfoBoxRenderer = ({ block, update, readOnly }) => {
 };
 
 
+
+const FooterRenderer = ({ block, update, readOnly }) => {
+  const containerStyle = {
+    backgroundColor: block.style?.backgroundColor || "#062375",
+    color: block.style?.textColor || "#ffffff",
+    padding: "40px 20px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    textAlign: "center",
+    gap: "20px",
+    ...block.style
+  };
+
+  if (readOnly) {
+    return (
+      <table cellPadding="0" cellSpacing="0" border="0" width="100%" className={`block-component block-${block.type}`} style={containerStyle}>
+        <tbody>
+          <tr>
+            <td align="center">
+              {block.logoUrl && (
+                <img
+                  src={block.logoUrl}
+                  alt="Logo"
+                  style={{ height: "40px", marginBottom: "20px", display: "block" }}
+                />
+              )}
+              {block.title && (
+                <h3 style={{ margin: "0 0 10px 0", fontSize: "18px", fontWeight: "bold" }}>{block.title}</h3>
+              )}
+              {block.subtitle && (
+                <p style={{ margin: "0 0 20px 0", fontSize: "14px", opacity: 0.8 }}>{block.subtitle}</p>
+              )}
+
+              {/* Links */}
+              {block.links && block.links.length > 0 && (
+                <table cellPadding="0" cellSpacing="0" border="0" style={{ margin: "0 auto 20px auto" }}>
+                  <tbody>
+                    <tr>
+                      {block.links.map((link, i) => (
+                        <td key={i} style={{ padding: "0 10px" }}>
+                          <a href={link.url} target="_blank" style={{ color: "inherit", textDecoration: "none", fontSize: "14px", fontWeight: "bold" }}>
+                            {link.platform === "globe" ? "Website" : link.platform.charAt(0).toUpperCase() + link.platform.slice(1)}
+                          </a>
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+
+              {block.copyright && (
+                <p style={{ margin: 0, fontSize: "12px", opacity: 0.6 }}>{block.copyright}</p>
+              )}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    );
+  }
+
+  return (
+    <div className={`block-component block-${block.type} flex flex-col items-center gap-4 p-8 rounded-lg`} style={containerStyle}>
+      {/* Logo Upload */}
+      <div className="relative group/logo">
+        {block.logoUrl ? (
+          <img src={block.logoUrl} className="h-10 object-contain" />
+        ) : (
+          <div className="h-10 w-32 border-2 border-dashed border-white/30 rounded flex items-center justify-center text-xs opacity-50">
+            Upload Logo
+          </div>
+        )}
+        <input
+          type="file"
+          className="absolute inset-0 opacity-0 cursor-pointer"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) update("logoUrl", URL.createObjectURL(file));
+          }}
+        />
+      </div>
+
+      {/* Title & Subtitle */}
+      <input
+        value={block.title || ""}
+        onChange={(e) => update("title", e.target.value)}
+        className="bg-transparent text-center font-bold text-lg outline-none w-full placeholder-white/50"
+        placeholder="Footer Title"
+        style={{ color: "inherit" }}
+      />
+      <textarea
+        value={block.subtitle || ""}
+        onChange={(e) => update("subtitle", e.target.value)}
+        className="bg-transparent text-center text-sm outline-none w-full resize-none placeholder-white/50"
+        rows={2}
+        placeholder="Footer Subtitle / Description"
+        style={{ color: "inherit" }}
+      />
+
+      {/* Links */}
+      <div className="flex gap-4 flex-wrap justify-center">
+        {(block.links || []).map((link, i) => (
+          <div key={i} className="flex items-center gap-1 bg-white/10 px-2 py-1 rounded">
+            <span className="text-xs capitalize">{link.platform}</span>
+            <button
+              onClick={() => {
+                const newLinks = block.links.filter((_, idx) => idx !== i);
+                update("links", newLinks);
+              }}
+              className="text-xs hover:text-red-300"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={() => {
+            const newLink = { platform: "globe", url: "https://" };
+            update("links", [...(block.links || []), newLink]);
+          }}
+          className="text-xs bg-white/20 px-2 py-1 rounded hover:bg-white/30"
+        >
+          + Add Link
+        </button>
+      </div>
+
+      {/* Copyright */}
+      <input
+        value={block.copyright || ""}
+        onChange={(e) => update("copyright", e.target.value)}
+        className="bg-transparent text-center text-xs outline-none w-full opacity-60 placeholder-white/50"
+        placeholder="© 2024 Copyright Info"
+        style={{ color: "inherit" }}
+      />
+    </div>
+  );
+};
 
 export default function BlockRenderer({ block, blocks, setBlocks, readOnly = false, isSelected = false, onSelect }) {
   const update = (key, value) => {
@@ -3518,7 +4045,54 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     }
 
     // SECTION GRID (Remaining original functionality)
-    if (block?.type === "sectionGrid")
+    if (block?.type === "sectionGrid") {
+      if (readOnly) {
+        return (
+          <table
+            cellPadding="0"
+            cellSpacing="0"
+            border="0"
+            width="100%"
+            align="center"
+            style={{ ...getCommonStyles(block), display: 'table' }}
+            className={`block-component block-${block.type} block-${block.id}`}
+          >
+            <tbody>
+              <tr>
+                {block.columns.map((col, i) => {
+                  const colStyle = block.style?.columnStyles?.[i] || {};
+                  return (
+                    <td
+                      key={i}
+                      valign="top"
+                      width={`${100 / block.columns.length}%`}
+                      style={{
+                        ...colStyle,
+                        backgroundColor: colStyle.backgroundColor,
+                        padding: colStyle.padding ? `${colStyle.padding}px` : undefined,
+                        border: colStyle.borderWidth ? `${colStyle.borderWidth}px solid ${colStyle.borderColor || "#e5e7eb"}` : undefined,
+                        borderRadius: colStyle.borderRadius ? `${colStyle.borderRadius}px` : undefined,
+                      }}
+                    >
+                      {/* Render Children */}
+                      {col.map((child) => (
+                        <BlockRenderer
+                          key={child.id}
+                          block={child}
+                          blocks={col}
+                          setBlocks={() => { }}
+                          readOnly={true}
+                        />
+                      ))}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
+        );
+      }
+
       return (
         <div style={getCommonStyles(block)} className={`block-component block-${block.type} block-${block.id}`}>
           <div
@@ -3663,6 +4237,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
           </div>
         </div>
       );
+    }
 
     // CARD ROW
     if (block?.type === "cardRow") {
@@ -3672,8 +4247,15 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
         ? `calc((100% - ${(columns - 1) * gap}px) / ${columns})`
         : "200px";
 
+      /* Refactored to use div structure for consistent rendering and style support */
+
       return (
         <div
+          data-columns={columns}
+          data-card-style={JSON.stringify(block.cardStyle || {})}
+          data-card-image-style={JSON.stringify(block.cardImageStyle || {})}
+          data-card-title-style={JSON.stringify(block.cardTitleStyle || {})}
+          data-card-desc-style={JSON.stringify(block.cardDescStyle || {})}
           style={{
             ...getCommonStyles(block),
             display: "flex",
@@ -3681,8 +4263,9 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
             flexWrap: "wrap",
             gap: `${gap}px`
           }}
-          className={`block-component block-${block.type} block-${block.id}`}
+          className={`block-component block-${block.type} block-${block.id} card-row`}
         >
+          {/* ... existing cardRow editor ... */}
           {(block.cards || []).map((card) => (
             <div
               key={card.id}

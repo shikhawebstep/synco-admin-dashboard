@@ -470,9 +470,9 @@ export default function BirthdayUpdate() {
             if (groupData.banner?.file instanceof File) {
                 formData.append("banner", groupData.banner.file, groupData.banner.file.name);
             }
-            if (groupData.video?.file instanceof File) {
-                formData.append("video", groupData.video.file, groupData.video.file.name);
-            }
+            // if (groupData.video?.file instanceof File) {
+            //     formData.append("video", groupData.video.file, groupData.video.file.name);
+            // }
 
             // ✅ API call
             const response = await fetch(

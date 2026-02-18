@@ -375,9 +375,9 @@ export default function BirthdayCreate() {
             if (groupData.banner?.file) {
                 formData.append("banner", groupData.banner.file, groupData.banner.file.name);
             }
-            if (groupData.video?.file) {
-                formData.append("video", groupData.video.file, groupData.video.file.name);
-            }
+            // if (groupData.video?.file) {
+            //     formData.append("video", groupData.video.file, groupData.video.file.name);
+            // }
 
             const response = await fetch(`${API_BASE_URL}/api/admin/birthday-party/session-plan-birthdayParty/create`, {
                 method: "POST",

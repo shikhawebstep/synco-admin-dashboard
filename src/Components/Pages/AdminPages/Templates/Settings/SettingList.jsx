@@ -111,7 +111,6 @@ export default function SettingList() {
         showConfirm(
             "Are you sure?",
             "You won't be able to revert this!",
-            "warning"
         )?.then((result) => {
             if (result?.isConfirmed) {
                 deleteCommunicationTemplate?.(id);

@@ -312,6 +312,7 @@ const HolidayTermsCreate = () => {
         // PURE DATE, NO TIMEZONE CONVERSION POSSIBLE
         return `${year}-${month}-${day}`;
     };
+    console.log('myGroupData', myGroupData)
 
     const handleSaveCamp = async () => {
 
@@ -335,7 +336,7 @@ const HolidayTermsCreate = () => {
         }
 
         const payload = {
-            holidayCampId: id || myGroupData?.id || selectedTerm?.id,
+            holidayCampId: selectedTerm?.holidayCampId || selectedTerm?.holidayCamp?.id,
             sessionPlanGroupId: 1, // static value
             startDate: toDateOnly(holidayTerms.startDate),
             endDate: toDateOnly(holidayTerms.endDate),
