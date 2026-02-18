@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+﻿import React, { useRef, useState, useEffect } from "react";
 import ReactQuill from "react-quill-new";
 // import "react-quill-new/dist/quill.snow.css";
 import {
@@ -72,6 +72,13 @@ const convertHtmlToBlocks = (html) => {
       if (s.textShadow) style.textShadow = s.textShadow;
       if (s.marginTop) style.marginTop = parseInt(s.marginTop) || 0;
       if (s.marginBottom) style.marginBottom = parseInt(s.marginBottom) || 0;
+      if (s.marginLeft) style.marginLeft = parseInt(s.marginLeft) || 0;
+      if (s.marginRight) style.marginRight = parseInt(s.marginRight) || 0;
+      if (s.margin) style.margin = s.margin; // Shorthand for alignment
+
+      if (s.padding) style.padding = parseInt(s.padding) || 0;
+      if (s.paddingTop) style.paddingTop = parseInt(s.paddingTop) || 0;
+      if (s.paddingBottom) style.paddingBottom = parseInt(s.paddingBottom) || 0;
       if (s.display) style.display = s.display;
       if (s.flexDirection) style.flexDirection = s.flexDirection;
       if (s.gap) style.gap = parseInt(s.gap) || 0;
@@ -163,7 +170,7 @@ const convertHtmlToBlocks = (html) => {
           const img = node.querySelector("img");
           return createBlock("image", {
             url: img ? img.getAttribute("src") : "",
-            style: { ...nodeStyle, width: "100%" }
+            style: { ...nodeStyle }
           });
         }
 
@@ -217,32 +224,77 @@ const convertHtmlToBlocks = (html) => {
 
           if (isTable) {
             // Handle Table Format (ReadOnly/Email)
-            // Structure: Outer Table -> tr -> td -> Inner Table (Card)
-            const innerTables = Array.from(node.querySelectorAll("td > table"));
-            innerTables.forEach(cardTable => {
-              const card = {
-                id: crypto.randomUUID(),
-                title: "Card Title",
-                description: "",
-                url: "",
-                link: "",
-                style: extractStyles(cardTable)
-              };
+            // Structure: Outer Table -> tr -> td -> Card Content (or inner table if nested)
+            // My implementation uses direct content in TD
+            // Updated Logic: Iterate through rows and cells to find DIRECT child card containers
+            // This prevents selecting TDs inside the nested card tables
+            const rows = Array.from(node.rows);
+            const cells = [];
+            rows.forEach(row => {
+              Array.from(row.cells).forEach(cell => cells.push(cell));
+            });
 
-              const img = cardTable.querySelector("img");
-              if (img) card.url = img.getAttribute("src");
+            cells.forEach(cell => {
+              // Skip empty spacer cells (width only or empty)
+              if (cell.innerHTML.trim() === "" || cell.innerHTML === "&nbsp;") return;
 
-              // Link might be wrapping the image or separate
-              const link = cardTable.querySelector("a");
-              if (link) card.link = link.getAttribute("href");
+              // Check if this cell is a card container
+              // It should contain typical card elements (img, h4, p, a)
+              // But ignore cells that are just wrappers for inner tables if we use that approach.
+              // My ReadOnly implementation puts content directly in TD.
 
-              const title = cardTable.querySelector("h4");
-              if (title) card.title = title.innerText;
+              // Check if there is an inner table (legacy/alt support)
+              if (cell.querySelector("table")) {
+                // If inner table exists, let's assume valid card data is inside it
+                const cardTable = cell.querySelector("table");
+                const card = {
+                  id: crypto.randomUUID(),
+                  title: "Card Title",
+                  description: "",
+                  url: "",
+                  link: "",
+                  style: extractStyles(cardTable)
+                };
+                const img = cardTable.querySelector("img");
+                if (img) card.url = img.getAttribute("src");
+                const link = cardTable.querySelector("a");
+                if (link) card.link = link.getAttribute("href");
+                const title = cardTable.querySelector("h4, strong, div[style*='font-weight: 800'], div[style*='font-weight: bold']");
+                if (title) card.title = title.innerText;
+                const desc = cardTable.querySelector("p, div[style*='font-size: 14px']");
+                if (desc && desc !== title) card.description = desc.innerText;
+                cards.push(card);
+              } else {
+                // Direct Content in TD
+                const card = {
+                  id: crypto.randomUUID(),
+                  title: "Card Title",
+                  description: "",
+                  url: "",
+                  link: "",
+                  style: extractStyles(cell) // Capture cell styles (bg, border, etc)
+                };
 
-              const desc = cardTable.querySelector("p");
-              if (desc) card.description = desc.innerText;
+                const img = cell.querySelector("img");
+                if (img) card.url = img.getAttribute("src");
 
-              cards.push(card);
+                const link = cell.querySelector("a");
+                if (link) card.link = link.getAttribute("href");
+
+                // Title detection (h4, strong, or specific styled div)
+                const title = cell.querySelector("h4, strong, div[style*='font-weight: 800'], div[style*='font-weight: bold']");
+                if (title) card.title = title.innerText;
+
+                // Description detection
+                // Find text that isn't the title
+                const possibleDescs = Array.from(cell.querySelectorAll("p, div"));
+                const desc = possibleDescs.find(d => d !== title && d.innerText.trim() !== card.title && d.innerText.trim().length > 0 && !d.querySelector("img"));
+                if (desc) card.description = desc.innerText;
+
+                if (card.title || card.url || card.description) {
+                  cards.push(card);
+                }
+              }
             });
           } else {
             // Handle Div Format (Editor)
@@ -304,7 +356,6 @@ const convertHtmlToBlocks = (html) => {
               try { cardStyle = JSON.parse(node.dataset.cardStyle); } catch (e) { }
             } else if (cards.length > 0) {
               // Infer Card Style from first card
-              // We want to capture the card's specific styles (bg, border, radius, shadow)
               // cards[0].style already contains extracted styles
               const s = cards[0].style || {};
               if (s.backgroundColor) cardStyle.backgroundColor = s.backgroundColor;
@@ -319,42 +370,7 @@ const convertHtmlToBlocks = (html) => {
             if (node.dataset.cardImageStyle) {
               try { cardImageStyle = JSON.parse(node.dataset.cardImageStyle); } catch (e) { }
             } else if (cards.length > 0) {
-              // Infer Image Style from first card
-              // We need to find the img tag inside the first card's structure used for parsing
-              // Since `cards` only has extracted data, we look at the original node's children?
-              // Actually, `cards` extraction logic didn't save the raw DOM node.
-              // We should use the DOM traversal logic used up above.
-              // Re-finding the first card's element:
-              const firstCardNode = isTable
-                ? node.querySelector("td > table")
-                : Array.from(node.children).find(child => child.tagName !== "BUTTON" && !child.classList.contains("z-30"));
-
-              if (firstCardNode) {
-                const img = firstCardNode.querySelector("img");
-                if (img) {
-                  const imgStyle = extractStyles(img);
-                  if (imgStyle.width) cardImageStyle.width = imgStyle.width;
-                  if (imgStyle.height) cardImageStyle.height = imgStyle.height;
-                  if (imgStyle.borderRadius) cardImageStyle.borderRadius = imgStyle.borderRadius;
-                  if (imgStyle.objectFit) cardImageStyle.objectFit = imgStyle.objectFit;
-                  if (imgStyle.marginBottom) cardImageStyle.marginBottom = imgStyle.marginBottom;
-                }
-
-                const title = firstCardNode.querySelector("h4") || firstCardNode.querySelector("strong") || firstCardNode.querySelector("h1, h2, h3, h5");
-                if (title) {
-                  const tStyle = extractStyles(title);
-                  if (tStyle.textColor) cardTitleStyle.textColor = tStyle.textColor;
-                  if (tStyle.fontSize) cardTitleStyle.fontSize = tStyle.fontSize;
-                  if (tStyle.fontWeight) cardTitleStyle.fontWeight = tStyle.fontWeight;
-                }
-
-                const desc = firstCardNode.querySelector("p");
-                if (desc) {
-                  const dStyle = extractStyles(desc);
-                  if (dStyle.textColor) cardDescStyle.textColor = dStyle.textColor;
-                  if (dStyle.fontSize) cardDescStyle.fontSize = dStyle.fontSize;
-                }
-              }
+              // ... (existing inference logic is weak for table, leaving as is)
             }
 
             if (node.dataset.cardTitleStyle) {
@@ -536,111 +552,144 @@ const convertHtmlToBlocks = (html) => {
         if (type === "infoBox") {
           const items = [];
 
-          // Try to find items by looking for pairs of Label/Value or just text
-          // In the snippet, it's: div > div (flex col) > div (Label) + div (Value)
-          // Try to find items by looking for pairs of Label/Value or just text
-          // In the snippet, it's: div > div (flex col) > div (Label) + div (Value)
-          // FIX: Don't use .block-infoBox selector as it might be the node itself.
-          // Look for nested divs that act as columns.
-          let itemDivs = [];
-          // If the node has a wrapper div, use that
-          if (node.children.length === 1 && node.children[0].tagName === "DIV") {
-            itemDivs = Array.from(node.children[0].children);
-          } else {
-            itemDivs = Array.from(node.children);
-          }
+          if (node.tagName === "TABLE") {
+            // Handle Table Format (ReadOnly/Email)
+            // Structure: Table -> tr -> td -> Item (label/value)
+            const tds = Array.from(node.querySelectorAll("td"));
 
-          // Filter to only those that look like columns (have children)
-          itemDivs = itemDivs.filter(d => d.tagName === "DIV" && d.children.length > 0);
+            tds.forEach(td => {
+              // Skip empty
+              if (!td.innerText.trim()) return;
 
-          // Check if these "columns" have the specific column class or structure
-          // Or just proceed with the assumption they might be columns if they contain multiple pairs
-          const hasMultiplePairs = itemDivs.some(d => d.children.length >= 4); // At least 2 pairs
+              // Expecting div (label) + div (value) inside TD
+              const divs = Array.from(td.children).filter(c => c.tagName === "DIV" || c.tagName === "A");
+              // If A tag is wrapper, look inside
 
-          if (hasMultiplePairs) {
-            itemDivs.forEach(div => {
-              // Inside each column, there are rows of Label/Value pairs?
-              // Snippet: 4 columns.
-              // Inside column: multiple label/value pairs?
-              // Snippet shows: div (col) -> div (Label), div (Value), div (Label), div (Value)...
-
-              // Let's iterate children of the column
-              const children = Array.from(div.children);
-              for (let i = 0; i < children.length; i += 2) {
-                const label = children[i]?.innerText;
-                const value = children[i + 1]?.innerHTML;
-                if (label && value) {
-                  items.push({ label, value });
+              if (divs.length === 1 && divs[0].tagName === "A") {
+                // Link wrapper
+                const link = divs[0];
+                const innerDivs = Array.from(link.children).filter(c => c.tagName === "DIV");
+                if (innerDivs.length >= 2) {
+                  const label = innerDivs[0].innerText;
+                  const value = innerDivs[1].innerHTML;
+                  items.push({ label, value, link: link.getAttribute("href") });
                 }
+              } else if (divs.length >= 2) {
+                const label = divs[0].innerText;
+                const value = divs[1].innerHTML;
+                items.push({ label, value });
+              } else {
+                // Fallback check for basic text content if structure is loose
+                // Maybe split by newline?
+                // Or check for strong/bold
               }
             });
           } else {
-            // TRY GENERIC GRID/ROW DETECTION
-            // If the node has a single child that is a flex/grid container, use that.
-            // Or if the node itself is a flex/grid container, use its children.
-            const container = (node.children.length === 1 && (node.children[0].style.display === 'flex' || node.children[0].style.display === 'grid' || node.children[0].className.includes('grid') || node.children[0].className.includes('flex')))
-              ? node.children[0]
-              : node;
+            // DEFAULT / DIV Logic
+            // Try to find items by looking for pairs of Label/Value or just text
+            // In the snippet, it's: div > div (flex col) > div (Label) + div (Value)
+            // FIX: Don't use .block-infoBox selector as it might be the node itself.
+            // Look for nested divs that act as columns.
+            let itemDivs = [];
+            // If the node has a wrapper div, use that
+            if (node.children.length === 1 && node.children[0].tagName === "DIV") {
+              itemDivs = Array.from(node.children[0].children);
+            } else {
+              itemDivs = Array.from(node.children);
+            }
 
-            const children = Array.from(container.children);
-            // If children look like columns (contain multiple items), iterate them
-            // Heuristic: if a child has multiple div children, treat as column
-            // If a child has only 2 div children (or text + div), treat as Item
+            // Filter to only those that look like columns (have children)
+            itemDivs = itemDivs.filter(d => d.tagName === "DIV" && d.children.length > 0);
 
-            children.forEach(child => {
-              const grandChildren = Array.from(child.children);
-              if (grandChildren.length > 2) {
-                // Child is likely a column containing items
-                // Iterate pairs
-                for (let i = 0; i < grandChildren.length; i += 2) {
-                  const label = grandChildren[i]?.innerText;
-                  const value = grandChildren[i + 1]?.innerHTML;
-                  if (label && value) items.push({ label, value });
-                }
-              } else if (grandChildren.length === 2) {
-                // Child is likely an Item itself (Label + Value)
-                const label = grandChildren[0]?.innerText;
-                const value = grandChildren[1]?.innerHTML;
-                if (label && value) items.push({ label, value });
-              }
-            });
-          }
+            // Check if these "columns" have the specific column class or structure
+            // Or just proceed with the assumption they might be columns if they contain multiple pairs
+            const hasMultiplePairs = itemDivs.some(d => d.children.length >= 4); // At least 2 pairs
 
-          if (items.length === 0) {
-            const potentialLabels = Array.from(node.querySelectorAll("div, strong, b, h4, h5, h6")).filter(el => {
-              const style = extractStyles(el);
-              return style.fontWeight === "bold" || parseInt(style.fontWeight) >= 600 || el.tagName === "STRONG" || el.tagName === "B";
-            });
+            if (hasMultiplePairs) {
+              itemDivs.forEach(div => {
+                // Inside each column, there are rows of Label/Value pairs?
+                // Snippet: 4 columns.
+                // Inside column: multiple label/value pairs?
+                // Snippet shows: div (col) -> div (Label), div (Value), div (Label), div (Value)...
 
-            potentialLabels.forEach(labelEl => {
-              // Avoid using values that are too long as labels
-              if (labelEl.innerText.length > 100) return;
-
-              let valueEl = labelEl.nextElementSibling;
-              // If next sibling is a BR, skip it
-              if (valueEl && valueEl.tagName === "BR") valueEl = valueEl.nextElementSibling;
-
-              if (valueEl) {
-                items.push({ label: labelEl.innerText, value: valueEl.innerHTML });
-              }
-            });
-
-            // If still no items, try dl/dt/dd
-            if (items.length === 0) {
-              const dts = Array.from(node.querySelectorAll("dt"));
-              dts.forEach(dt => {
-                const dd = dt.nextElementSibling;
-                if (dd && dd.tagName === "DD") {
-                  items.push({ label: dt.innerText, value: dd.innerHTML });
+                // Let's iterate children of the column
+                const children = Array.from(div.children);
+                for (let i = 0; i < children.length; i += 2) {
+                  const label = children[i]?.innerText;
+                  const value = children[i + 1]?.innerHTML;
+                  if (label && value) {
+                    items.push({ label, value });
+                  }
                 }
               });
+            } else {
+              // TRY GENERIC GRID/ROW DETECTION
+              // If the node has a single child that is a flex/grid container, use that.
+              // Or if the node itself is a flex/grid container, use its children.
+              const container = (node.children.length === 1 && (node.children[0].style.display === 'flex' || node.children[0].style.display === 'grid' || node.children[0].className.includes('grid') || node.children[0].className.includes('flex')))
+                ? node.children[0]
+                : node;
+
+              const children = Array.from(container.children);
+              // If children look like columns (contain multiple items), iterate them
+              // Heuristic: if a child has multiple div children, treat as column
+              // If a child has only 2 div children (or text + div), treat as Item
+
+              children.forEach(child => {
+                const grandChildren = Array.from(child.children);
+                if (grandChildren.length > 2) {
+                  // Child is likely a column containing items
+                  // Iterate pairs
+                  for (let i = 0; i < grandChildren.length; i += 2) {
+                    const label = grandChildren[i]?.innerText;
+                    const value = grandChildren[i + 1]?.innerHTML;
+                    if (label && value) items.push({ label, value });
+                  }
+                } else if (grandChildren.length === 2) {
+                  // Child is likely an Item itself (Label + Value)
+                  const label = grandChildren[0]?.innerText;
+                  const value = grandChildren[1]?.innerHTML;
+                  if (label && value) items.push({ label, value });
+                }
+              });
+            }
+
+            if (items.length === 0) {
+              const potentialLabels = Array.from(node.querySelectorAll("div, strong, b, h4, h5, h6")).filter(el => {
+                const style = extractStyles(el);
+                return style.fontWeight === "bold" || parseInt(style.fontWeight) >= 600 || el.tagName === "STRONG" || el.tagName === "B";
+              });
+
+              potentialLabels.forEach(labelEl => {
+                // Avoid using values that are too long as labels
+                if (labelEl.innerText.length > 100) return;
+
+                let valueEl = labelEl.nextElementSibling;
+                // If next sibling is a BR, skip it
+                if (valueEl && valueEl.tagName === "BR") valueEl = valueEl.nextElementSibling;
+
+                if (valueEl) {
+                  items.push({ label: labelEl.innerText, value: valueEl.innerHTML });
+                }
+              });
+
+              // If still no items, try dl/dt/dd
+              if (items.length === 0) {
+                const dts = Array.from(node.querySelectorAll("dt"));
+                dts.forEach(dt => {
+                  const dd = dt.nextElementSibling;
+                  if (dd && dd.tagName === "DD") {
+                    items.push({ label: dt.innerText, value: dd.innerHTML });
+                  }
+                });
+              }
             }
           }
 
           if (items.length > 0) {
             return createBlock("infoBox", {
               items,
-              style: { ...nodeStyle, display: "flex", flexDirection: "row", gap: 16, flexWrap: "wrap" }
+              style: { ...nodeStyle }
             });
           }
           // If no items found, return default or empty?
@@ -1312,32 +1361,34 @@ const TextEditor = ({ value, onChange, style, placeholder, readOnly, id }) => {
         value={localValue}
         onChange={handleChange}
         placeholder={placeholder}
-        modules={{
-          toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            ['link', 'clean']
-          ],
-        }}
+        modules={modules}
       />
       <style>
         {`
           #editor-${id} .ql-editor {
-            color: ${style.color};
-            font-size: ${style.fontSize};
-            font-weight: ${style.fontWeight};
-            text-align: ${style.textAlign};
-            font-family: ${style.fontFamily};
-            line-height: ${style.lineHeight};
-            letter-spacing: ${style.letterSpacing};
-            text-decoration: ${style.textDecoration};
-            text-transform: ${style.textTransform};
+            color: ${style.color} !important;
+            font-size: ${style.fontSize} !important;
+            font-weight: ${style.fontWeight} !important;
+            text-align: ${style.textAlign} !important;
+            font-family: ${style.fontFamily} !important;
+            line-height: ${style.lineHeight} !important;
+            letter-spacing: ${style.letterSpacing} !important;
+            text-decoration: ${style.textDecoration} !important;
+            text-transform: ${style.textTransform} !important;
           }
         `}
       </style>
     </div>
   );
+};
+
+const modules = {
+  toolbar: [
+    [{ 'header': [1, 2, 3, false] }],
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+    ['link', 'clean']
+  ],
 };
 
 const parseUnit = (val) => {
@@ -1353,7 +1404,7 @@ const getCommonStyles = (b) => {
 
   return {
     width: s.width || "100%",
-    maxWidth: s.maxWidth || "100%",
+    maxWidth: b.type !== "image" ? s.maxWidth || "100%" : "none",
     height: s.height || "auto",
     minHeight: parseUnit(s.minHeight),
     marginTop: parseUnit(s.marginTop),
@@ -1392,6 +1443,49 @@ const getCommonStyles = (b) => {
     textDecoration: s.textDecoration,
     textTransform: s.textTransform,
   };
+};
+
+const getColumnWidths = (gridTemplateColumns, columnCount) => {
+  if (!gridTemplateColumns) {
+    return Array(columnCount).fill(`${100 / columnCount}%`);
+  }
+
+  // Handle "repeat(4, 1fr)" or "repeat(4, minmax(0, 1fr))"
+  let template = gridTemplateColumns;
+  // Regex to capture repeat count and the repeated value (which might be complex)
+  // We'll use a simpler approach: if it starts with repeat
+  const repeatMatch = template.match(/repeat\((\d+),\s*(.+)\)/);
+  if (repeatMatch) {
+    const count = parseInt(repeatMatch[1]);
+    const val = repeatMatch[2];
+    // val might be "minmax(0, 1fr)" or "1fr"
+    // We just want to repeat it. 
+    // If it contains "fr", we treat it as fr.
+    // For email width calculation, we really only care about "fr" parts to calculate %.
+
+    // If the value is "minmax(0, 1fr)", we can simplify it to "1fr" for calculation purposes
+    const simplifiedVal = val.includes("fr") ? "1fr" : val;
+    template = Array(count).fill(simplifiedVal).join(" ");
+  }
+
+  const parts = template.split(" ").map(p => p.trim()).filter(Boolean);
+
+  // If parsing failed or length doesn't match, fallback
+  if (parts.length === 0) return Array(columnCount).fill(`${100 / columnCount}%`);
+
+  const totalFr = parts.reduce((acc, part) => {
+    if (part.includes("fr")) return acc + parseFloat(part);
+    return acc; // Ignore px/auto for now in this simple email parser
+  }, 0);
+
+  if (totalFr === 0) return Array(columnCount).fill(`${100 / columnCount}%`);
+
+  return parts.map(part => {
+    if (part.includes("fr")) {
+      return `${(parseFloat(part) / totalFr) * 100}%`;
+    }
+    return null; // Return null for non-fr units to fallback or handle differently
+  });
 };
 
 const CustomHTMLRenderer = ({ block, update, readOnly, isSelected, onSelect, onConvert }) => {
@@ -1485,12 +1579,213 @@ const CustomHTMLRenderer = ({ block, update, readOnly, isSelected, onSelect, onC
   )
 };
 
+
+/* -------------------------------------------------------------------------- */
+/*                           STYLE CONFIGURATION                              */
+/* -------------------------------------------------------------------------- */
+
+const STYLE_GROUPS = {
+  typography: (path = "style", title = "Typography") => ({
+    id: `typography-${path || 'root'}`, title, icon: <FaFont />,
+    fields: [
+      {
+        label: "Font Family", key: "fontFamily", type: "select", path, options: [
+          { label: "Default", value: "inherit" },
+          { label: "Inter", value: "'Inter', sans-serif" },
+          { label: "Roboto", value: "'Roboto', sans-serif" },
+          { label: "Outfit", value: "'Outfit', sans-serif" },
+          { label: "Georgia", value: "Georgia, serif" },
+          { label: "Courier", value: "'Courier New', monospace" },
+          { label: "Handlee", value: "'Handlee', cursive" },
+        ]
+      },
+      { label: "Size", key: "fontSize", type: "range", min: 10, max: 100, path, suffix: "px" },
+      {
+        label: "Weight", key: "fontWeight", type: "select", path, options: [
+          { label: "Normal", value: "normal" },
+          { label: "Medium", value: "500" },
+          { label: "Semi-Bold", value: "600" },
+          { label: "Bold", value: "700" },
+          { label: "Black", value: "900" },
+        ]
+      },
+      { label: "Color", key: "textColor", type: "color", path },
+      { label: "Alignment", key: "textAlign", type: "align", path },
+      { label: "Opacity", key: "opacity", type: "range", min: 0, max: 1, step: 0.1, path, condition: (b) => path === 'subtitleStyle' }
+    ]
+  }),
+  layout: (path = "style", title = "Layout & Size") => ({
+    id: `layout-${path || 'root'}`, title, icon: <FaLayerGroup />,
+    fields: [
+      { label: "Width", key: "width", type: "text", path, placeholder: "100% or 500px" },
+      { label: "Max Width", key: "maxWidth", type: "text", path, placeholder: "100% or 800px" },
+      { label: "Height", key: "height", type: "text", path, placeholder: "auto or 400px" },
+      { label: "Display", key: "display", type: "select", path, options: [{ label: "Block", value: "block" }, { label: "Flex", value: "flex" }, { label: "Grid", value: "grid" }] },
+      { label: "Grid Columns", key: "gridTemplateColumns", type: "grid-columns", path, placeholder: "e.g. 3", condition: (b) => b?.[path]?.display === 'grid' },
+      { label: "Direction", key: "flexDirection", type: "select", path, options: [{ label: "Row", value: "row" }, { label: "Column", value: "column" }], condition: (b) => b?.[path]?.display === 'flex' || b?.[path]?.display === 'grid' },
+      { label: "Gap", key: "gap", type: "range", min: 0, max: 100, path, suffix: "px", condition: (b) => b?.[path]?.display === 'flex' || b?.[path]?.display === 'grid' },
+      { label: "Align Items", key: "alignItems", type: "select", path, options: [{ label: "Stretch", value: "stretch" }, { label: "Center", value: "center" }, { label: "Start", value: "flex-start" }, { label: "End", value: "flex-end" }], condition: (b) => b?.[path]?.display === 'flex' || b?.[path]?.display === 'grid' },
+      { label: "Justify Content", key: "justifyContent", type: "select", path, options: [{ label: "Start", value: "start" }, { label: "Center", value: "center" }, { label: "Space Between", value: "space-between" }, { label: "Space Around", value: "space-around" }], condition: (b) => b?.[path]?.display === 'flex' || b?.[path]?.display === 'grid' },
+    ]
+  }),
+  spacing: (path = "style", title = "Spacing") => ({
+    id: `spacing-${path || 'root'}`, title, icon: <FaArrowsAltV />,
+    fields: [
+      { label: "Padding", key: "padding", type: "range", min: 0, max: 100, path, suffix: "px" },
+      { label: "Margin Top", key: "marginTop", type: "number", path, suffix: "px" },
+      { label: "Margin Bottom", key: "marginBottom", type: "number", path, suffix: "px" },
+    ]
+  }),
+  appearance: (path = "style", title = "Appearance") => ({
+    id: `appearance-${path || 'root'}`, title, icon: <FaPalette />,
+    fields: [
+      { label: "Background", key: "backgroundColor", type: "color", path },
+      { label: "BG Image", key: "backgroundImage", type: "image", path, allowUpload: true },
+      { label: "BG Size", key: "backgroundSize", type: "select", path, options: [{ label: "Cover", value: "cover" }, { label: "Contain", value: "contain" }, { label: "Auto", value: "auto" }] },
+      { label: "Border Radius", key: "borderRadius", type: "range", min: 0, max: 50, path, suffix: "px" },
+      { label: "Border Color", key: "borderColor", type: "color", path },
+      { label: "Border Width", key: "borderWidth", type: "range", min: 0, max: 20, path, suffix: "px" },
+      { label: "Shadow", key: "boxShadow", type: "text", path, placeholder: "0 4px 6px rgba(0,0,0,0.1)" },
+    ]
+  }),
+  // Specialized Groups
+  image: (path = "style") => ({
+    id: `image-${path || 'root'}`, title: "Image Style", icon: <FaImage />,
+    fields: [
+      { label: "Fit", key: "objectFit", type: "select", path, options: [{ label: "Cover", value: "cover" }, { label: "Contain", value: "contain" }, { label: "Fill", value: "fill" }] },
+      { label: "Radius", key: "borderRadius", type: "range", min: 0, max: 50, path, suffix: "px" },
+      { label: "Alignment", key: "margin", type: "align-margin", path },
+    ]
+  }),
+  grid: (path = "style") => ({
+    id: `grid-${path || 'root'}`, title: "Grid Settings", icon: <FaLayerGroup />,
+    fields: [
+      { label: "Columns", key: "columns", type: "select", path, options: [{ label: "Auto", value: "auto" }, { label: "1", value: "1" }, { label: "2", value: "2" }, { label: "3", value: "3" }, { label: "4", value: "4" }] },
+      { label: "Gap", key: "gap", type: "range", min: 0, max: 100, path, suffix: "px" },
+      { label: "Align Items", key: "alignItems", type: "select", path, options: [{ label: "Stretch", value: "stretch" }, { label: "Center", value: "center" }, { label: "Start", value: "flex-start" }, { label: "End", value: "flex-end" }] },
+    ]
+  }),
+  link: (path = "style") => ({
+    id: `link-${path || 'root'}`, title: "Link / Action", icon: <FaMousePointer />,
+    fields: [
+      { label: "Block Link", key: "link", type: "text", path, placeholder: "https://example.com" },
+      { label: "Target", key: "linkTarget", type: "select", path, options: [{ label: "Same Tab", value: "_self" }, { label: "New Tab", value: "_blank" }] },
+    ]
+  })
+};
+
+const getStyleConfig = (block) => {
+  const config = [];
+
+  // Common styles for almost everyone
+  if (block.type === "text" || block.type === "heading" || block.type === "btn") {
+    config.push(STYLE_GROUPS.typography("style"));
+    config.push(STYLE_GROUPS.spacing("style"));
+    config.push(STYLE_GROUPS.appearance("style"));
+  }
+
+  if (block.type === "image") {
+    config.push(STYLE_GROUPS.layout("style"));
+    config.push(STYLE_GROUPS.image("style"));
+    config.push(STYLE_GROUPS.spacing("style"));
+  }
+
+  if (block.type === "sectionGrid") {
+    config.push(STYLE_GROUPS.layout("style"));
+    config.push(STYLE_GROUPS.grid("style"));
+    config.push(STYLE_GROUPS.appearance("style"));
+    config.push(STYLE_GROUPS.spacing("style"));
+  }
+
+  if (block.type === "cardRow" || block.type === "multipleInfoBox") {
+    config.push(STYLE_GROUPS.grid("style")); // Grid Layout
+    config.push(STYLE_GROUPS.appearance("cardStyle", "Card Style")); // Card Appearance
+    config.push(STYLE_GROUPS.image("cardImageStyle")); // Image Style
+    config.push(STYLE_GROUPS.typography("cardTitleStyle", "Card Title")); // Title
+    config.push(STYLE_GROUPS.typography("cardDescStyle", "Card Description")); // Desc
+  }
+
+  if (block.type === "multipleInfoBox") {
+    const unitStyle = STYLE_GROUPS.appearance("boxStyle", "Unit Style");
+    // Add specific fields for multipleInfoBox unit style
+    unitStyle.fields.push({ label: "Items per Row", key: "columns", type: "select", path: "boxStyle", options: [{ label: "1", value: "1" }, { label: "2", value: "2" }] });
+    unitStyle.fields.push({ label: "Item Layout", key: "itemLayout", type: "select", path: "boxStyle", options: [{ label: "Stacked", value: "stacked" }, { label: "Inline", value: "inline" }] });
+    // Add separator color
+    unitStyle.fields.push({ label: "Separator Color", key: "separatorColor", type: "color", path: "boxStyle" });
+
+    config.push(STYLE_GROUPS.layout("style")); // Added Layout
+    config.push(STYLE_GROUPS.spacing("style")); // Added Spacing
+    config.push(unitStyle);
+    config.push(STYLE_GROUPS.typography("boxStyle", "Text Colors")); // Reusing typography group for colors/fonts
+  }
+
+  if (block.type === "heroSection") {
+    config.push(STYLE_GROUPS.typography("titleStyle", "Hero Title"));
+    config.push(STYLE_GROUPS.typography("subtitleStyle", "Hero Subtitle"));
+    config.push(STYLE_GROUPS.appearance("buttonStyle", "Hero Button"));
+    config.push(STYLE_GROUPS.layout("style"));
+  }
+
+  if (block.type === "footerBlock") {
+    config.push(STYLE_GROUPS.typography("titleStyle", "Footer Title"));
+    config.push(STYLE_GROUPS.typography("subtitleStyle", "Footer Subtitle"));
+
+    // Custom Footer Settings Group
+    config.push({
+      id: "footerSettings", title: "Footer Settings", icon: <FaCog />,
+      fields: [
+        { label: "Logo URL", key: "logoUrl", type: "image", path: true, allowUpload: true, allowVariables: true },
+        { label: "Logo Width", key: "logoWidth", type: "range", min: 50, max: 400, path: "style", suffix: "px" },
+        { label: "Shop Text", key: "shopText", type: "text", path: true },
+        { label: "Shop URL", key: "shopLink", type: "text", path: true },
+      ]
+    });
+
+    config.push({
+      id: "bottomBarStyle", title: "Bottom Bar", icon: <FaBorderAll />,
+      fields: [
+        { label: "Background", key: "backgroundColor", type: "color", path: "bottomBarStyle" },
+        { label: "Text Size", key: "fontSize", type: "range", min: 8, max: 24, path: "bottomBarStyle", suffix: "px" },
+        { label: "Border Top", key: "borderTop", type: "text", path: "bottomBarStyle", placeholder: "1px solid rgba..." },
+        { label: "Border Color", key: "borderColor", type: "color", path: "bottomBarStyle" }
+      ]
+    });
+  }
+
+  // Info Box specific to add Top Border
+  if (block.type === "infoBox") {
+    const appearance = STYLE_GROUPS.appearance("style");
+    appearance.fields.push({ label: "Top Border Color", key: "topBorderColor", type: "color", path: "style" });
+    appearance.fields.push({ label: "Top Border Width", key: "topBorderWidth", type: "range", min: 0, max: 20, path: "style", suffix: "px" });
+
+    config.push(STYLE_GROUPS.layout("style")); // Added Layout
+    config.push(STYLE_GROUPS.spacing("style")); // Added Spacing
+    config.push(appearance);
+    config.push(STYLE_GROUPS.typography("style"));
+  }
+
+  // Fallback / Advanced
+  if (config.length === 0) {
+    config.push(STYLE_GROUPS.layout("style"));
+    config.push(STYLE_GROUPS.spacing("style"));
+    config.push(STYLE_GROUPS.appearance("style"));
+  }
+
+  // Always add Link section to everyone
+  config.push(STYLE_GROUPS.link("style"));
+
+  return config;
+};
+
+/* -------------------------------------------------------------------------- */
+/*                           ADVANCED STYLE CONTROLS                          */
+/* -------------------------------------------------------------------------- */
+
 export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) => {
   if (!block) return null;
-  const [openSection, setOpenSection] = useState("typography");
-  const [activeColIndex, setActiveColIndex] = useState(0);
+  const [openSection, setOpenSection] = useState(null);
 
-  // ✅ Handle Nested Selection (e.g., InfoBox inside Grid)
+  // ✅ Handle Nested Selection logic locally if needed, similar to original
   let targetBlock = block;
   let isNested = false;
 
@@ -1509,1009 +1804,271 @@ export const AdvancedStyleControls = ({ block, updateStyle: rawUpdateStyle }) =>
     }
   }
 
-  const updateStyle = (key, value, rootKey = null) => {
+  // ✅ Unified Update Handler
+  const updateStyle = (key, value, rootKey = "style") => {
+
+    // Determine the actual rootKey to use.
+    // If rootKey is explicit (e.g. "titleStyle" or true), use it.
+    // If rootKey is null/undefined, default to "style" for standard props? 
+    // OLD CODE: updateStyle("width", val) -> passed null as rootKey.
+    // We need to match that behavior if possible, OR ensure rawUpdateStyle handles "style" string.
+    // Let's assume passing "style" explicitly is safer if we want to update block.style
+
+    // However, for strict compatibility with `TemplateBuilder` which might expect `null` for style updates:
+    let finalRootKey = rootKey;
+    if (rootKey === "style") finalRootKey = null; // Map back to null for default style
+    // But wait, if I have `path="titleStyle"`, I pass "titleStyle".
+
     if (isNested) {
-      // We need to update the CHILD block, not the parent grid directly
-      // However, `rawUpdateStyle` usually updates the ROOT block passed to it.
-      // We need a way to propagate changes to the child.
-      // Since `rawUpdateStyle` in `TemplateBuilder` likely only updates the `selectedBlock` (the Grid),
-      // we might need to update the Grid's columns to update the child.
-
-      // But `AdvancedStyleControls` receives `updateStyle` which might be `updateBox` or state setter.
-      // If `BlockRenderer` is used, `updateStyle` is passed from parent.
-
-      // The current `rawUpdateStyle` passed from `BlockRenderer` (line 3300) might not be enough if it's top-level.
-      // CHECK: Where is AdvancedStyleControls called? 
-      // It is called in `TemplateBuilder.jsx` or `CreateTemplate.jsx`.
-
-      // Let's assume we need to update the parent block (Grid) by modifying its columns to update the child.
-      // But `rawUpdateStyle` usually takes (key, value).
-
-      // Use a custom update for nested blocks:
-      rawUpdateStyle("childUpdate", { childId: targetBlock.id, key, value, rootKey });
+      // Pass child update up to parent
+      rawUpdateStyle("childUpdate", { childId: targetBlock.id, key, value, rootKey: finalRootKey });
     } else {
-      rawUpdateStyle(key, value, rootKey);
+      // Direct update
+      rawUpdateStyle(key, value, finalRootKey);
     }
   };
 
-  const Section = ({ id, title, icon, children }) => {
-    const isOpen = openSection === id;
-    return (
-      <div className="border border-gray-200 rounded-lg bg-white overflow-hidden mb-2 shadow-sm">
-        <button
-          onClick={() => setOpenSection(isOpen ? null : id)}
-          className={`w-full flex items-center justify-between p-3 transition text-xs font-bold uppercase tracking-wider ${isOpen ? 'bg-blue-50 text-blue-600' : 'bg-white hover:bg-gray-50 text-gray-700'}`}
-        >
-          <div className="flex items-center gap-2">
-            {icon}
-            <span>{title}</span>
-          </div>
-          {isOpen ? <FaChevronUp /> : <FaChevronDown />}
-        </button>
-        {isOpen && <div className="p-3 grid grid-cols-2 gap-3 bg-gray-50/50">{children}</div>}
-      </div>
-    );
-  };
+  const config = getStyleConfig(targetBlock);
 
-  return (
-    <div className="mt-4 flex flex-col gap-2 scale-95 origin-top-left w-[105%]">
-      {/* Typography Section */}
-      <Section id="typography" title="Typography" icon={<FaFont />}>
-        <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Font Family</label>
-          <select
-            value={targetBlock?.style?.fontFamily || "inherit"}
-            onChange={(e) => updateStyle("fontFamily", e.target.value)}
-            className="text-xs border rounded p-1 bg-white h-8"
-          >
-            <option value="inherit">Default</option>
-            <option value="'Inter', sans-serif">Inter</option>
-            <option value="'Roboto', sans-serif">Roboto</option>
-            <option value="'Outfit', sans-serif">Outfit</option>
-            <option value="Georgia, serif">Georgia</option>
-            <option value="'Courier New', monospace">Courier</option>
-            <option value="'Handlee', cursive">Handlee</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({targetBlock?.style?.fontSize}px)</label>
-          <input type="range" min="10" max="100" value={targetBlock?.style?.fontSize || 16} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Weight</label>
-          <select value={targetBlock?.style?.fontWeight || "normal"} onChange={(e) => updateStyle("fontWeight", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
-            <option value="normal">Normal</option>
-            <option value="500">Medium</option>
-            <option value="700">Bold</option>
-            <option value="900">Black</option>
-          </select>
-        </div>
-        <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Alignment</label>
-          <div className="flex bg-white rounded border border-gray-200 p-1 gap-1 justify-center h-8 items-center">
-            {[
-              { val: "left", icon: <FaAlignLeft /> },
-              { val: "center", icon: <FaAlignCenter /> },
-              { val: "right", icon: <FaAlignRight /> },
-              { val: "justify", icon: <FaAlignJustify /> }
-            ].map(opt => (
-              <button key={opt.val} onClick={() => updateStyle("textAlign", opt.val)} className={`p-1 rounded ${targetBlock?.style?.textAlign === opt.val ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}>
-                {opt.icon}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Color</label>
-          <input type="color" value={targetBlock?.style?.textColor || "#000000"} onChange={(e) => updateStyle("textColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-        </div>
-      </Section>
+  // Helper to render a single field
+  const renderField = (field) => {
+    // Check condition if exists
+    if (field.condition && !field.condition(targetBlock)) return null;
 
-      {targetBlock?.type === "heroSection" && (
-        <>
-          <Section id="heroTitleStyles" title="Hero Title Style" icon={<FaHeading />}>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({targetBlock.titleStyle?.fontSize || 36}px)</label>
-              <input type="range" min="20" max="100" value={targetBlock.titleStyle?.fontSize || 36} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "titleStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Weight</label>
-              <select value={targetBlock.titleStyle?.fontWeight || "600"} onChange={(e) => updateStyle("fontWeight", e.target.value, "titleStyle")} className="text-xs border rounded p-1 bg-white h-8">
-                <option value="normal">Normal</option>
-                <option value="600">Semi-Bold</option>
-                <option value="700">Bold</option>
-                <option value="900">Black</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Color</label>
-              <input type="color" value={targetBlock.titleStyle?.textColor || "#ffffff"} onChange={(e) => updateStyle("textColor", e.target.value, "titleStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-            </div>
-          </Section>
+    const path = field.path === true ? null : (field.path || "style");
+    // If path is true (root), use targetBlock directly. If string, usage targetBlock[path].
+    const currentValue = (path ? targetBlock[path]?.[field.key] : targetBlock[field.key]);
 
-          <Section id="heroSubtitleStyles" title="Hero Subtitle Style" icon={<FaAlignLeft />}>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({targetBlock.subtitleStyle?.fontSize || 18}px)</label>
-              <input type="range" min="12" max="40" value={targetBlock.subtitleStyle?.fontSize || 18} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "subtitleStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Color</label>
-              <input type="color" value={targetBlock.subtitleStyle?.textColor || "#ffffff"} onChange={(e) => updateStyle("textColor", e.target.value, "subtitleStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Opacity ({Math.round((targetBlock.subtitleStyle?.opacity || 0.9) * 100)}%)</label>
-              <input type="range" min="0" max="1" step="0.1" value={targetBlock.subtitleStyle?.opacity || 0.9} onChange={(e) => updateStyle("opacity", parseFloat(e.target.value), "subtitleStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-            </div>
-          </Section>
+    // Helper to change value
+    // If path is logic (true -> root), we pass true to updateStyle?
+    // In config definitions, I used `path: true` for root.
+    // `updateStyle` wrapper expects 3rd arg to be the key name or true or null.
+    // If path is "style", I pass "style". My wrapper maps it to null if needed.
+    const updatePath = field.path;
 
-          <Section id="heroButtonStyles" title="Hero Button Style" icon={<FaMousePointer />}>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">BG Color</label>
-              <input type="color" value={targetBlock.buttonStyle?.backgroundColor || "#FBBF24"} onChange={(e) => updateStyle("backgroundColor", e.target.value, "buttonStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Text Color</label>
-              <input type="color" value={targetBlock.buttonStyle?.textColor || "#000000"} onChange={(e) => updateStyle("textColor", e.target.value, "buttonStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Radius ({targetBlock.buttonStyle?.borderRadius || 30}px)</label>
-              <input type="range" min="0" max="50" value={targetBlock.buttonStyle?.borderRadius || 30} onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value), "buttonStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-            </div>
-          </Section>
-        </>
-      )}
+    const handleChange = (val) => updateStyle(field.key, val, updatePath);
 
-      {targetBlock?.type === "footerBlock" && (
-        <>
-          <Section id="titleStyles" title="Footer Title Style" icon={<FaHeading />}>
-            <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Font Family</label>
-              <select
-                value={block.titleStyle?.fontFamily || "Georgia, serif"}
-                onChange={(e) => updateStyle("fontFamily", e.target.value, "titleStyle")}
-                className="text-xs border rounded p-1 bg-white h-8"
-              >
-                <option value="'Inter', sans-serif">Inter</option>
-                <option value="'Outfit', sans-serif">Outfit</option>
-                <option value="Georgia, serif">Georgia</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({block.titleStyle?.fontSize || 32}px)</label>
-              <input type="range" min="10" max="100" value={block.titleStyle?.fontSize || 32} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "titleStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Weight</label>
-              <select value={block.titleStyle?.fontWeight || "700"} onChange={(e) => updateStyle("fontWeight", e.target.value, "titleStyle")} className="text-xs border rounded p-1 bg-white h-8">
-                <option value="normal">Normal</option>
-                <option value="700">Bold</option>
-                <option value="900">Black</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Color</label>
-              <input type="color" value={block.titleStyle?.textColor || "#ffffff"} onChange={(e) => updateStyle("textColor", e.target.value, "titleStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-            </div>
-          </Section>
-
-          <Section id="subtitleStyles" title="Footer Subtitle" icon={<FaAlignLeft />}>
-            <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Font Family</label>
-              <select
-                value={block?.subtitleStyle?.fontFamily || "inherit"}
-                onChange={(e) => updateStyle("fontFamily", e.target.value, "subtitleStyle")}
-                className="text-xs border rounded p-1 bg-white h-8"
-              >
-                <option value="inherit">Default</option>
-                <option value="'Inter', sans-serif">Inter</option>
-                <option value="'Outfit', sans-serif">Outfit</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Size ({block?.subtitleStyle?.fontSize || 16}px)</label>
-              <input type="range" min="10" max="40" value={block?.subtitleStyle?.fontSize || 16} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "subtitleStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Color</label>
-              <input type="color" value={block?.subtitleStyle?.textColor || "#ffffff"} onChange={(e) => updateStyle("textColor", e.target.value, "subtitleStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-            </div>
-          </Section>
-        </>
-      )
-      }
-
-      {targetBlock?.type === "sectionGrid" && (
-        <>
-          <Section id="gridStyle" title="Grid Style" icon={<FaLayerGroup />}>
-            {/* Background */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Background</label>
-              <input type="color" value={block.style?.backgroundColor || "#ffffff"} onChange={(e) => updateStyle("backgroundColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-            </div>
-
-            {/* Padding */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Padding ({block.style?.padding || 0}px)</label>
-              <input type="range" min="0" max="100" value={block.style?.padding || 0} onChange={(e) => updateStyle("padding", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-            </div>
-
-            {/* Gap */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Gap ({block.style?.gap || 16}px)</label>
-              <input type="range" min="0" max="100" value={block.style?.gap !== undefined ? block.style.gap : 16} onChange={(e) => updateStyle("gap", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-            </div>
-
-            {/* Min Height */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Min Height</label>
-              <input type="number" value={parseInt(block.style?.minHeight) || 0} onChange={(e) => updateStyle("minHeight", e.target.value)} className="text-xs border rounded p-1 w-full h-8" placeholder="px" />
-            </div>
-
-            {/* Border Radius */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Corner Radius</label>
-              <input type="range" min="0" max="50" value={block.style?.borderRadius || 0} onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-            </div>
-
-            {/* Border */}
-            <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Border</label>
-              <div className="flex gap-2 items-center">
-                <input type="color" value={block.style?.borderColor || "#e5e7eb"} onChange={(e) => updateStyle("borderColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-                <input type="number" placeholder="Width" value={block.style?.borderWidth || 0} onChange={(e) => updateStyle("borderWidth", parseInt(e.target.value))} className="text-xs border rounded p-1 w-20 h-8" />
-              </div>
-            </div>
-          </Section>
-
-          <Section id="columnStyles" title="Column Styles" icon={<FaLayerGroup />}>
-            <div className="col-span-2 flex gap-1 mb-2 overflow-x-auto pb-2">
-              {(targetBlock.columns || []).map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setActiveColIndex(i)}
-                  className={`px-3 py-1 text-[10px] font-bold rounded border ${activeColIndex === i ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-gray-50 border-gray-100 text-gray-500'}`}
-                >
-                  Col {i + 1}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Background</label>
-              <input
-                type="color"
-                value={block.style?.columnStyles?.[activeColIndex]?.backgroundColor || "#ffffff"}
-                onChange={(e) => {
-                  const newColStyles = [...(block.style?.columnStyles || [])];
-                  if (!newColStyles[activeColIndex]) newColStyles[activeColIndex] = {};
-                  newColStyles[activeColIndex] = { ...newColStyles[activeColIndex], backgroundColor: e.target.value };
-                  updateStyle("columnStyles", newColStyles);
-                }}
-                className="w-8 h-8 rounded border-none p-0 cursor-pointer"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Padding</label>
-              <input
-                type="range"
-                min="0"
-                max="50"
-                value={block.style?.columnStyles?.[activeColIndex]?.padding || 0}
-                onChange={(e) => {
-                  const newColStyles = [...(block.style?.columnStyles || [])];
-                  if (!newColStyles[activeColIndex]) newColStyles[activeColIndex] = {};
-                  newColStyles[activeColIndex] = { ...newColStyles[activeColIndex], padding: parseInt(e.target.value) };
-                  updateStyle("columnStyles", newColStyles);
-                }}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Radius</label>
-              <input
-                type="range"
-                min="0"
-                max="50"
-                value={block.style?.columnStyles?.[activeColIndex]?.borderRadius || 0}
-                onChange={(e) => {
-                  const newColStyles = [...(block.style?.columnStyles || [])];
-                  if (!newColStyles[activeColIndex]) newColStyles[activeColIndex] = {};
-                  newColStyles[activeColIndex] = { ...newColStyles[activeColIndex], borderRadius: parseInt(e.target.value) };
-                  updateStyle("columnStyles", newColStyles);
-                }}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-
-            <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Border</label>
-              <div className="flex gap-2 items-center">
-                <input
-                  type="color"
-                  value={block.style?.columnStyles?.[activeColIndex]?.borderColor || "#e5e7eb"}
-                  onChange={(e) => {
-                    const newColStyles = [...(block.style?.columnStyles || [])];
-                    if (!newColStyles[activeColIndex]) newColStyles[activeColIndex] = {};
-                    newColStyles[activeColIndex] = { ...newColStyles[activeColIndex], borderColor: e.target.value };
-                    updateStyle("columnStyles", newColStyles);
-                  }}
-                  className="w-8 h-8 rounded border-none p-0 cursor-pointer"
-                />
-                <input
-                  type="number"
-                  placeholder="Width"
-                  value={block.style?.columnStyles?.[activeColIndex]?.borderWidth || 0}
-                  onChange={(e) => {
-                    const newColStyles = [...(block.style?.columnStyles || [])];
-                    if (!newColStyles[activeColIndex]) newColStyles[activeColIndex] = {};
-                    newColStyles[activeColIndex] = { ...newColStyles[activeColIndex], borderWidth: parseInt(e.target.value) };
-                    updateStyle("columnStyles", newColStyles);
-                  }}
-                  className="text-xs border rounded p-1 w-20 h-8"
-                />
-              </div>
-            </div>
-          </Section>
-        </>
-      )}
-
-      {(targetBlock?.type === "cardRow" || targetBlock?.type === "infoBox" || targetBlock?.type === "multipleInfoBox" || (targetBlock?.type === "sectionGrid" && targetBlock?.style?.display === "grid")) && (
-        <>
-          <Section id="cardLayout" title="Grid Layout" icon={<FaLayerGroup />}>
-            {/* Width Controls */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Width</label>
-              <input
-                type="text"
-                placeholder="e.g. 100% or 1200"
-                value={targetBlock?.style?.width || ""}
-                onChange={(e) => updateStyle("width", e.target.value)}
-                className="text-xs border rounded p-1 w-full h-8"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Max Width</label>
-              <input
-                type="text"
-                placeholder="e.g. 1200"
-                value={targetBlock?.style?.maxWidth || ""}
-                onChange={(e) => updateStyle("maxWidth", e.target.value)}
-                className="text-xs border rounded p-1 w-full h-8"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Height</label>
-              <input
-                type="text"
-                placeholder="e.g. auto or 500"
-                value={targetBlock?.style?.height || ""}
-                onChange={(e) => updateStyle("height", e.target.value)}
-                className="text-xs border rounded p-1 w-full h-8"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Gap (px)</label>
-              <input type="number" value={targetBlock?.style?.gap !== undefined ? targetBlock?.style?.gap : 16} onChange={(e) => updateStyle("gap", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" />
-            </div>
-
-            <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Columns</label>
-              <select
-                value={targetBlock?.style?.columns || "auto"}
-                onChange={(e) => updateStyle("columns", e.target.value)}
-                className="text-xs border rounded p-1 bg-white h-8"
-              >
-                <option value="auto">Auto (Responsive)</option>
-                <option value="1">1 Column</option>
-                <option value="2">2 Columns</option>
-                <option value="3">3 Columns</option>
-                <option value="4">4 Columns</option>
-                <option value="5">5 Columns</option>
-                <option value="6">6 Columns</option>
-              </select>
-            </div>
-
-            {/* Alignment for Grid */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Align (Vertical)</label>
-              <select value={targetBlock?.style?.alignItems || "stretch"} onChange={(e) => updateStyle("alignItems", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
-                <option value="stretch">Stretch</option>
-                <option value="center">Center</option>
-                <option value="flex-start">Start</option>
-                <option value="flex-end">End</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Justify (Horiz)</label>
-              <select value={targetBlock?.style?.justifyContent || "start"} onChange={(e) => updateStyle("justifyContent", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
-                <option value="start">Start</option>
-                <option value="center">Center</option>
-                <option value="space-between">Space Between</option>
-                <option value="space-around">Space Around</option>
-              </select>
-            </div>
-          </Section>
-        </>
-      )}
-
-      {(targetBlock?.type === "cardRow" || targetBlock?.type === "multipleInfoBox" || targetBlock?.type === "infoBox") && (
-        <Section id="cardStyle" title={targetBlock.type === "multipleInfoBox" ? "Unit Style" : (targetBlock.type === "infoBox" ? "Info Box Style" : "Card Style")} icon={<FaBorderAll />}>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">{targetBlock.type === "multipleInfoBox" ? "Unit BG" : "Background"}</label>
-            <input
-              type="color"
-              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.backgroundColor || "#ffffff") : (targetBlock.type === "infoBox" ? (targetBlock.style?.backgroundColor || "#f3f4f6") : (targetBlock.cardStyle?.backgroundColor || "#ffffff"))}
-              onChange={(e) => updateStyle("backgroundColor", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : (targetBlock.type === "infoBox" ? null : "cardStyle"))}
-              className="w-8 h-8 rounded border-none p-0 cursor-pointer"
-            />
-          </div>
-
-          {targetBlock.type === "multipleInfoBox" && (
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Items Columns</label>
-              <select
-                value={targetBlock.boxStyle?.columns || "1"}
-                onChange={(e) => updateStyle("columns", parseInt(e.target.value), "boxStyle")}
-                className="text-xs border rounded p-1 bg-white h-8"
-              >
-                <option value="1">1 Column</option>
-                <option value="2">2 Columns</option>
-                <option value="3">3 Columns</option>
-                <option value="4">4 Columns</option>
-              </select>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">Padding ({targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.padding || 20) : (targetBlock.type === "infoBox" ? (targetBlock.style?.padding || 20) : (targetBlock.cardStyle?.padding || 16))}px)</label>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.padding || 20) : (targetBlock.type === "infoBox" ? (targetBlock.style?.padding || 20) : (targetBlock.cardStyle?.padding || 16))}
-              onChange={(e) => updateStyle("padding", parseInt(e.target.value), targetBlock.type === "multipleInfoBox" ? "boxStyle" : (targetBlock.type === "infoBox" ? null : "cardStyle"))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">Radius ({targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderRadius || 12) : (targetBlock.type === "infoBox" ? (targetBlock.style?.borderRadius || 12) : (targetBlock.cardStyle?.borderRadius || 12))}px)</label>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderRadius || 12) : (targetBlock.type === "infoBox" ? (targetBlock.style?.borderRadius || 12) : (targetBlock.cardStyle?.borderRadius || 12))}
-              onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value), targetBlock.type === "multipleInfoBox" ? "boxStyle" : (targetBlock.type === "infoBox" ? null : "cardStyle"))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">Border Color</label>
-            <input
-              type="color"
-              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderColor || "#eeeeee") : (targetBlock.type === "infoBox" ? (targetBlock.style?.borderColor || "#eeeeee") : (targetBlock.cardStyle?.borderColor || "#eeeeee"))}
-              onChange={(e) => updateStyle("borderColor", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : (targetBlock.type === "infoBox" ? null : "cardStyle"))}
-              className="w-8 h-8 rounded border-none p-0 cursor-pointer"
-            />
-          </div>
-
-          {(targetBlock.type === "multipleInfoBox" || targetBlock.type === "infoBox") && (
-            <>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Border Width</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.borderWidth || 0) : (targetBlock.style?.borderWidth || 0)}
-                  onChange={(e) => updateStyle("borderWidth", parseInt(e.target.value), targetBlock.type === "multipleInfoBox" ? "boxStyle" : null)}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Top Border Width</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="20"
-                  value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.topBorderWidth || 0) : (targetBlock.style?.topBorderWidth || 0)}
-                  onChange={(e) => updateStyle("topBorderWidth", parseInt(e.target.value), targetBlock.type === "multipleInfoBox" ? "boxStyle" : null)}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Top Border Color</label>
-                <input
-                  type="color"
-                  value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.topBorderColor || "#10b981") : (targetBlock.style?.topBorderColor || "#10b981")}
-                  onChange={(e) => updateStyle("topBorderColor", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : null)}
-                  className="w-8 h-8 rounded border-none p-0 cursor-pointer"
-                />
-              </div>
-              {targetBlock.type === "multipleInfoBox" && (
-                <>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase">Separator Color</label>
-                    <input
-                      type="color"
-                      value={targetBlock.boxStyle?.separatorColor || "#e5e7eb"}
-                      onChange={(e) => updateStyle("separatorColor", e.target.value, "boxStyle")}
-                      className="w-8 h-8 rounded border-none p-0 cursor-pointer"
-                    />
-                  </div>
-                  <div className="col-span-2 flex items-center gap-2 mt-1">
-                    <input
-                      type="checkbox"
-                      id="showSeparators"
-                      checked={targetBlock.boxStyle?.showSeparators || false}
-                      onChange={(e) => updateStyle("showSeparators", e.target.checked, "boxStyle")}
-                      className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                    />
-                    <label htmlFor="showSeparators" className="text-[10px] font-bold text-gray-400 uppercase cursor-pointer">Show Vertical Separators</label>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-
-          {targetBlock.type !== "multipleInfoBox" && targetBlock.type !== "infoBox" && (
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Card Min Width</label>
-              <input
-                type="text"
-                placeholder="e.g. 200 or 300"
-                value={targetBlock.cardStyle?.minWidth || ""}
-                onChange={(e) => updateStyle("minWidth", e.target.value, "cardStyle")}
-                className="text-xs border rounded p-1 w-full h-8"
-              />
-            </div>
-          )}
-          <div className="col-span-2 flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">Shadow</label>
+    switch (field.type) {
+      case "text":
+        return (
+          <div className="flex flex-col gap-1" key={field.key}>
+            <label className="text-[10px] font-bold text-gray-400 uppercase">{field.label}</label>
             <input
               type="text"
-              placeholder="e.g. 0 4px 10px rgba(0,0,0,0.1)"
-              value={targetBlock.type === "multipleInfoBox" ? (targetBlock.boxStyle?.boxShadow || "") : (targetBlock.type === "infoBox" ? (targetBlock.style?.boxShadow || "") : (targetBlock.cardStyle?.boxShadow || ""))}
-              onChange={(e) => updateStyle("boxShadow", e.target.value, targetBlock.type === "multipleInfoBox" ? "boxStyle" : (targetBlock.type === "infoBox" ? null : "cardStyle"))}
+              placeholder={field.placeholder}
+              value={currentValue !== undefined ? currentValue : ""}
+              onChange={(e) => handleChange(e.target.value)}
               className="text-xs border rounded p-1 w-full h-8"
             />
           </div>
+        );
+      case "number":
+        return (
+          <div className="flex flex-col gap-1" key={field.key}>
+            <label className="text-[10px] font-bold text-gray-400 uppercase">{field.label}</label>
+            <input
+              type="number"
+              placeholder={field.placeholder}
+              value={parseInt(currentValue) || 0}
+              onChange={(e) => handleChange(parseInt(e.target.value))}
+              className="text-xs border rounded p-1 w-full h-8"
+            />
+          </div>
+        );
+      case "range":
+        return (
+          <div className="flex flex-col gap-1" key={field.key}>
+            <label className="text-[10px] font-bold text-gray-400 uppercase">{field.label} ({field.step && field.max <= 1 ? (Math.round((parseFloat(currentValue) || 0) * 100)) + '%' : (parseInt(currentValue) || 0) + (field.suffix || "")})</label>
+            <input
+              type="range"
+              min={field.min}
+              max={field.max}
+              step={field.step || 1}
+              value={field.step && field.max <= 1 ? (parseFloat(currentValue) || 1) : (parseInt(currentValue) || 0)}
+              onChange={(e) => handleChange(field.step && field.max <= 1 ? parseFloat(e.target.value) : parseInt(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+            />
+          </div>
+        );
+      case "color":
+        return (
+          <div className="flex flex-col gap-1" key={field.key}>
+            <label className="text-[10px] font-bold text-gray-400 uppercase">{field.label}</label>
+            <div className="flex items-center gap-2 h-8">
+              <input
+                type="color"
+                value={currentValue || "#000000"}
+                onChange={(e) => handleChange(e.target.value)}
+                className="w-8 h-8 rounded border-none p-0 cursor-pointer"
+              />
+              <span className="text-[10px] text-gray-500 uppercase">{currentValue || "#000000"}</span>
+            </div>
+          </div>
+        );
+      case "image":
+        const isBg = field.key === "backgroundImage";
+        const displayValue = isBg ? (currentValue?.replace(/url\(["']?|["']?\)/g, '') || "") : (currentValue || "");
 
-          {targetBlock.type === "multipleInfoBox" && (
-            <>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Title Color</label>
-                <input type="color" value={targetBlock.boxStyle?.titleColor || "#111827"} onChange={(e) => updateStyle("titleColor", e.target.value, "boxStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Label Color</label>
-                <input type="color" value={targetBlock.boxStyle?.labelColor || "#6b7280"} onChange={(e) => updateStyle("labelColor", e.target.value, "boxStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Value Color</label>
-                <input type="color" value={targetBlock.boxStyle?.valueColor || "#111827"} onChange={(e) => updateStyle("valueColor", e.target.value, "boxStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Title Size</label>
-                <input type="number" value={targetBlock.boxStyle?.titleFontSize || 18} onChange={(e) => updateStyle("titleFontSize", parseInt(e.target.value), "boxStyle")} className="text-xs border rounded p-1 w-full h-8" />
-              </div>
-            </>
-          )}
-
-          <div className="col-span-2 flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">Content Alignment</label>
+        return (
+          <div className="col-span-2 flex flex-col gap-1" key={field.key}>
+            <label className="text-[10px] font-bold text-gray-400 uppercase">{field.label}</label>
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={displayValue}
+                onChange={(e) => handleChange(isBg ? (e.target.value ? `url("${e.target.value}")` : "") : e.target.value)}
+                className="text-xs border rounded p-1 flex-1 h-8"
+                placeholder="https://..."
+              />
+              {field.allowUpload && (
+                <>
+                  <input
+                    id={`upload-${field.key}-${targetBlock.id}`}
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const url = URL.createObjectURL(file);
+                        handleChange(isBg ? `url("${url}")` : url);
+                      }
+                    }}
+                  />
+                  <label htmlFor={`upload-${field.key}-${targetBlock.id}`} className="bg-blue-50 text-blue-600 p-2 rounded cursor-pointer hover:bg-blue-100 transition h-8 flex items-center justify-center">
+                    <FaImage />
+                  </label>
+                </>
+              )}
+              {field.allowVariables && (
+                <select
+                  className="text-[10px] border rounded p-1 w-12 h-8"
+                  onChange={(e) => handleChange(e.target.value)}
+                  value=""
+                >
+                  <option value="" disabled>Var</option>
+                  {VARIABLE_OPTIONS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+        );
+      case "select":
+        return (
+          <div className="flex flex-col gap-1" key={field.key}>
+            <label className="text-[10px] font-bold text-gray-400 uppercase">{field.label}</label>
+            <select
+              value={currentValue !== undefined ? currentValue : ""}
+              onChange={(e) => handleChange(e.target.value)}
+              className="text-xs border rounded p-1 bg-white h-8"
+            >
+              {field.options.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        );
+      case "align":
+        return (
+          <div className="col-span-2 flex flex-col gap-1" key={field.key}>
+            <label className="text-[10px] font-bold text-gray-400 uppercase">{field.label}</label>
             <div className="flex bg-white rounded border border-gray-200 p-1 gap-1 justify-center h-8 items-center">
-              {[{ val: "left", icon: <FaAlignLeft /> }, { val: "center", icon: <FaAlignCenter /> }, { val: "right", icon: <FaAlignRight /> }].map(opt => (
+              {[
+                { val: "left", icon: <FaAlignLeft /> },
+                { val: "center", icon: <FaAlignCenter /> },
+                { val: "right", icon: <FaAlignRight /> },
+                { val: "justify", icon: <FaAlignJustify /> }
+              ].map(opt => (
                 <button
                   key={opt.val}
-                  onClick={() => updateStyle("textAlign", opt.val, targetBlock.type === "multipleInfoBox" ? "boxStyle" : "cardStyle")}
-                  className={`p-1 rounded ${(targetBlock.type === "multipleInfoBox" ? targetBlock.boxStyle?.textAlign : targetBlock.cardStyle?.textAlign) === opt.val ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                  onClick={() => handleChange(opt.val)}
+                  className={`p-1 rounded ${currentValue === opt.val ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
                 >
                   {opt.icon}
                 </button>
               ))}
             </div>
           </div>
-
-          {targetBlock.type === "multipleInfoBox" && (
-            <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Item Layout (Label/Value)</label>
-              <div className="flex gap-2">
-                <select
-                  value={targetBlock.boxStyle?.itemLayout || "stacked"}
-                  onChange={(e) => updateStyle("itemLayout", e.target.value, "boxStyle")}
-                  className="text-xs border rounded p-1 bg-white h-8 flex-1"
+        );
+      case "align-margin":
+        return (
+          <div className="col-span-2 flex flex-col gap-1" key={field.key}>
+            <label className="text-[10px] font-bold text-gray-400 uppercase">Image Alignment</label>
+            <div className="flex bg-white rounded border border-gray-200 p-1 gap-1 justify-center h-8 items-center">
+              {[
+                { val: "0 auto 0 0", icon: <FaAlignLeft />, label: "Left" },
+                { val: "0 auto", icon: <FaAlignCenter />, label: "Center" },
+                { val: "0 0 0 auto", icon: <FaAlignRight />, label: "Right" }
+              ].map(opt => (
+                <button
+                  key={opt.label}
+                  onClick={() => handleChange(opt.val)}
+                  className={`flex-1 flex items-center justify-center gap-1 text-[9px] py-1 rounded ${currentValue === opt.val ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
                 >
-                  <option value="stacked">Stacked (Default)</option>
-                  <option value="inline">Inline (Side-by-Side)</option>
-                </select>
-                <input
-                  type="number"
-                  min="1"
-                  max="4"
-                  placeholder="Cols"
-                  value={targetBlock.boxStyle?.columns || 1}
-                  onChange={(e) => updateStyle("columns", parseInt(e.target.value), "boxStyle")}
-                  className="text-xs border rounded p-1 w-16 h-8"
-                  title="Items per Row"
-                />
-              </div>
+                  {opt.icon} {opt.label}
+                </button>
+              ))}
             </div>
-          )}
-
-        </Section>
-      )
-      }
-
-      <Section id="cardContent" title="Card Content" icon={<FaHeading />}>
-        {/* Image Controls */}
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Image Height</label>
-          <input
-            type="text"
-            placeholder="e.g. 150 or 200px"
-            value={targetBlock.cardImageStyle?.height || ""}
-            onChange={(e) => updateStyle("height", e.target.value, "cardImageStyle")}
-            className="text-xs border rounded p-1 w-full h-8"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Image Width</label>
-          <input
-            type="text"
-            placeholder="e.g. 100% or 150"
-            value={targetBlock.cardImageStyle?.width || ""}
-            onChange={(e) => updateStyle("width", e.target.value, "cardImageStyle")}
-            className="text-xs border rounded p-1 w-full h-8"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Image Fit</label>
-          <select
-            value={targetBlock.cardImageStyle?.objectFit || "cover"}
-            onChange={(e) => updateStyle("objectFit", e.target.value, "cardImageStyle")}
-            className="text-xs border rounded p-1 bg-white h-8"
-          >
-            <option value="cover">Cover (Fill)</option>
-            <option value="contain">Contain (Show All)</option>
-            <option value="fill">Stretch</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Img Radius</label>
-          <input type="number" value={parseInt(targetBlock.cardImageStyle?.borderRadius) || 8} onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value), "cardImageStyle")} className="text-xs border rounded p-1 w-full h-8" />
-        </div>
-
-        <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Image Alignment</label>
-          <div className="flex bg-white rounded border border-gray-200 p-1 gap-1 justify-center h-8 items-center">
-            {[
-              { val: "0 auto 0 0", icon: <FaAlignLeft />, label: "Left" },
-              { val: "0 auto", icon: <FaAlignCenter />, label: "Center" },
-              { val: "0 0 0 auto", icon: <FaAlignRight />, label: "Right" }
-            ].map(opt => (
-              <button
-                key={opt.val}
-                onClick={() => updateStyle("margin", opt.val, "cardImageStyle")}
-                className={`flex-1 flex items-center justify-center gap-1 text-[9px] py-1 rounded ${targetBlock.cardImageStyle?.margin === opt.val ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-              >
-                {opt.icon} {opt.label}
-              </button>
-            ))}
           </div>
-        </div>
+        );
+      case "grid-columns":
+        // Parse existing value to get count
+        const currentVal = currentValue || "";
+        const match = currentVal.match(/repeat\((\d+)/);
+        const count = match ? parseInt(match[1]) : (currentVal.split(" ").length || 1);
 
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Img Margin T</label>
-          <input type="number" value={parseInt(targetBlock.cardImageStyle?.marginTop) || 0} onChange={(e) => updateStyle("marginTop", parseInt(e.target.value), "cardImageStyle")} className="text-xs border rounded p-1 w-full h-8" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Img Margin B</label>
-          <input type="number" value={parseInt(targetBlock.cardImageStyle?.marginBottom) || 16} onChange={(e) => updateStyle("marginBottom", parseInt(e.target.value), "cardImageStyle")} className="text-xs border rounded p-1 w-full h-8" />
-        </div>
-
-        {/* Title */}
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Title Size</label>
-          <input type="number" value={targetBlock.cardTitleStyle?.fontSize || 16} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "cardTitleStyle")} className="text-xs border rounded p-1 w-full h-8" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Title Color</label>
-          <input type="color" value={targetBlock.cardTitleStyle?.textColor || "#000000"} onChange={(e) => updateStyle("textColor", e.target.value, "cardTitleStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-        </div>
-        {/* Description */}
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Desc Size</label>
-          <input type="number" value={targetBlock.cardDescStyle?.fontSize || 14} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "cardDescStyle")} className="text-xs border rounded p-1 w-full h-8" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Desc Color</label>
-          <input type="color" value={targetBlock.cardDescStyle?.textColor || "#666666"} onChange={(e) => updateStyle("textColor", e.target.value, "cardDescStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-        </div>
-      </Section>
-
-      {/* Spacing & Layout */}
-      <Section id="spacing" title="Spacing & Layout" icon={<FaLayerGroup />}>
-        <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Padding ({targetBlock?.style?.padding || 0}px)</label>
-          <input type="range" min="0" max="100" value={targetBlock?.style?.padding || 0} onChange={(e) => updateStyle("padding", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Margin Top</label>
-          <input type="number" value={targetBlock?.style?.marginTop} onChange={(e) => updateStyle("marginTop", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" placeholder="px" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Margin Btm</label>
-          <input type="number" value={targetBlock?.style?.marginBottom} onChange={(e) => updateStyle("marginBottom", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" placeholder="px" />
-        </div>
-        {targetBlock?.type !== "cardRow" && (
-          <div className="col-span-2 flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">Display</label>
-            <select value={targetBlock?.style?.display || "block"} onChange={(e) => updateStyle("display", e.target.value)} className="text-xs border rounded p-1 bg-white w-full h-8">
-              <option value="block">Block</option>
-              <option value="flex">Flex</option>
-              <option value="grid">Grid</option>
-            </select>
-          </div>
-        )}
-        {(targetBlock?.style?.display === "flex" || targetBlock?.style?.display === "grid") && (
-          <>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Direction</label>
-              <select value={targetBlock?.style?.flexDirection || "row"} onChange={(e) => updateStyle("flexDirection", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
-                <option value="row">Row</option>
-                <option value="column">Column</option>
-                <option value="row-reverse">Row Reverse</option>
-                <option value="column-reverse">Column Reverse</option>
-              </select>
+        return (
+          <div className="flex flex-col gap-1" key={field.key}>
+            <label className="text-[10px] font-bold text-gray-400 uppercase">{field.label}</label>
+            <div className="flex gap-2 items-center">
+              <input
+                type="number"
+                min="1"
+                max="12"
+                value={count}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value) || 1;
+                  handleChange(`repeat(${val}, minmax(0, 1fr))`);
+                }}
+                className="text-xs border rounded p-1 w-full h-8"
+              />
+              <span className="text-[10px] text-gray-400 whitespace-nowrap">columns</span>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Gap</label>
-              <input type="number" value={targetBlock?.style?.gap} onChange={(e) => updateStyle("gap", parseInt(e.target.value))} className="text-xs border rounded p-1 w-full h-8" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Align Items</label>
-              <select value={targetBlock?.style?.alignItems || "stretch"} onChange={(e) => updateStyle("alignItems", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
-                <option value="stretch">Stretch</option>
-                <option value="center">Center</option>
-                <option value="flex-start">Start</option>
-                <option value="flex-end">End</option>
-              </select>
-            </div>
-            <div className="col-span-2 flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Justify Content</label>
-              <select value={targetBlock?.style?.justifyContent || "start"} onChange={(e) => updateStyle("justifyContent", e.target.value)} className="text-xs border rounded p-1 w-full h-8">
-                <option value="start">Start</option>
-                <option value="center">Center</option>
-                <option value="space-between">Space Between</option>
-                <option value="space-around">Space Around</option>
-              </select>
-            </div>
-          </>
-        )}
-      </Section>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
-      {/* Background & Borders */}
-      <Section id="appearance" title="Appearance" icon={<FaPalette />}>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">BG Color</label>
-          <div className="flex items-center gap-2 h-8">
-            <input type="color" value={targetBlock?.style?.backgroundColor || "#ffffff"} onChange={(e) => updateStyle("backgroundColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-          </div>
-        </div>
-        <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Background Image</label>
-          <div className="flex gap-2 items-center">
-            <input
-              type="text"
-              placeholder="Image URL"
-              value={targetBlock?.style?.backgroundImage?.replace(/url\(["']?|["']?\)/g, '') || ""}
-              onChange={(e) => updateStyle("backgroundImage", e.target.value ? `url("${e.target.value}")` : "")}
-              className="text-xs border rounded p-1 flex-1 h-8"
-            />
-            <input
-              id={`bg-img-upload-${targetBlock.id}`}
-              type="file"
-              className="hidden"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) updateStyle("backgroundImage", `url("${URL.createObjectURL(file)}")`);
-              }}
-            />
-            <label htmlFor={`bg-img-upload-${targetBlock.id}`} className="bg-blue-50 text-blue-600 p-2 rounded cursor-pointer hover:bg-blue-100 transition h-8 flex items-center justify-center">
-              <FaImage />
-            </label>
-          </div>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">BG Size</label>
-          <select value={targetBlock?.style?.backgroundSize || "cover"} onChange={(e) => updateStyle("backgroundSize", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
-            <option value="cover">Cover</option>
-            <option value="contain">Contain</option>
-            <option value="auto">Auto</option>
-            <option value="100% 100%">Stretch</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">BG Position</label>
-          <select value={targetBlock?.style?.backgroundPosition || "center"} onChange={(e) => updateStyle("backgroundPosition", e.target.value)} className="text-xs border rounded p-1 bg-white h-8">
-            <option value="center">Center</option>
-            <option value="top">Top</option>
-            <option value="bottom">Bottom</option>
-            <option value="left">Left</option>
-            <option value="right">Right</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Border Color</label>
-          <div className="flex items-center gap-2 h-8">
-            <input type="color" value={targetBlock?.style?.borderColor || "#000000"} onChange={(e) => updateStyle("borderColor", e.target.value)} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-          </div>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Radius ({targetBlock?.style?.borderRadius || 0})</label>
-          <input type="range" min="0" max="50" value={targetBlock?.style?.borderRadius || 0} onChange={(e) => updateStyle("borderRadius", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Border Width</label>
-          <input type="range" min="0" max="20" value={targetBlock?.style?.borderWidth || 0} onChange={(e) => updateStyle("borderWidth", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-        </div>
-
-        {/* Top Border Controls (Requested for InfoBox) */}
-        <div className="col-span-2 flex flex-col gap-1 border-t border-gray-100 pt-2 mt-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Top Border</label>
-          <div className="flex gap-2 items-center">
-            <input
-              type="color"
-              value={targetBlock?.style?.topBorderColor || "#000000"}
-              onChange={(e) => updateStyle("topBorderColor", e.target.value)}
-              className="w-8 h-8 rounded border-none p-0 cursor-pointer"
-              title="Top Border Color"
-            />
-            <input
-              type="range"
-              min="0"
-              max="20"
-              value={targetBlock?.style?.borderTopWidth || 0}
-              onChange={(e) => updateStyle("borderTopWidth", parseInt(e.target.value))}
-              className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              title={`Width: ${targetBlock?.style?.borderTopWidth || 0}px`}
-            />
-            <span className="text-[10px] text-gray-400 w-8 text-right">{targetBlock?.style?.borderTopWidth || 0}px</span>
-          </div>
-        </div>
-        <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Box Shadow</label>
-          <input type="text" placeholder="e.g. 0 4px 6px rgba(0,0,0,0.1)" value={targetBlock?.style?.boxShadow || ""} onChange={(e) => updateStyle("boxShadow", e.target.value)} className="text-xs border rounded p-1 w-full h-8" />
-        </div>
-      </Section>
-
-      {/* Advanced / Custom CSS */}
-      <Section id="advanced" title="Advanced" icon={<FaArrowsAltV />}>
-        <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Width / Max-Width</label>
-          <div className="flex gap-2">
-            <input placeholder="Width (100%)" value={targetBlock?.style?.width} onChange={(e) => updateStyle("width", e.target.value)} className="text-xs border rounded p-1 w-1/2 h-8" />
-            <input placeholder="Max Width" value={targetBlock?.style?.maxWidth} onChange={(e) => updateStyle("maxWidth", e.target.value)} className="text-xs border rounded p-1 w-1/2 h-8" />
-          </div>
-        </div>
-        <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Height</label>
-          <input placeholder="Height (auto)" value={targetBlock?.style?.height} onChange={(e) => updateStyle("height", e.target.value)} className="text-xs border rounded p-1 w-full h-8" />
-        </div>
-        {(targetBlock?.type === "image" || targetBlock?.type === "heroSection" || targetBlock?.type === "customSection") && (
-          <div className="col-span-2 flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">Image Fit (Object Fit)</label>
-            <select value={targetBlock?.style?.objectFit || "cover"} onChange={(e) => updateStyle("objectFit", e.target.value)} className="text-xs border rounded p-1 bg-white w-full h-8">
-              <option value="cover">Cover</option>
-              <option value="contain">Contain</option>
-              <option value="fill">Fill</option>
-              <option value="none">None</option>
-              <option value="scale-down">Scale Down</option>
-            </select>
-          </div>
-        )}
-      </Section>
-
-      {
-        targetBlock?.type === "footerBlock" && (
-          <>
-            <Section id="footerSettings" title="Footer Settings" icon={<FaCog />}>
-              <div className="col-span-2 flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Logo URL</label>
-                <div className="flex gap-1">
-                  <input
-                    type="text"
-                    value={targetBlock.logoUrl || targetBlock.style?.logoUrl || ""}
-                    onChange={(e) => updateStyle("logoUrl", e.target.value, true)}
-                    className="text-xs border rounded p-1 flex-1 h-8"
-                    placeholder="https://..."
-                  />
-                  <input
-                    id={`footer-logo-upload-${targetBlock.id}`}
-                    type="file"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) updateStyle("logoUrl", URL.createObjectURL(file), true);
-                    }}
-                  />
-                  <label htmlFor={`footer-logo-upload-${targetBlock.id}`} className="bg-blue-50 text-blue-600 p-2 rounded cursor-pointer hover:bg-blue-100 transition h-8 flex items-center justify-center">
-                    <FaImage />
-                  </label>
-                  <select
-                    className="text-[10px] border rounded p-1 w-12 h-8"
-                    onChange={(e) => updateStyle("logoUrl", e.target.value, true)}
-                    value=""
-                  >
-                    <option value="" disabled>Var</option>
-                    {VARIABLE_OPTIONS.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Logo Width ({targetBlock?.style?.logoWidth || 120}px)</label>
-                <input type="range" min="50" max="400" value={targetBlock?.style?.logoWidth || 120} onChange={(e) => updateStyle("logoWidth", parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Shop Text</label>
-                <input type="text" value={targetBlock.shopText || targetBlock.style?.shopText || "Shop Online"} onChange={(e) => updateStyle("shopText", e.target.value, true)} className="text-xs border rounded p-1 w-full h-8" />
-              </div>
-              <div className="col-span-2 flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Shop URL</label>
-                <input type="text" value={targetBlock.shopLink || targetBlock.style?.shopLink || ""} onChange={(e) => updateStyle("shopLink", e.target.value, true)} className="text-xs border rounded p-1 w-full h-8" placeholder="https://..." />
-              </div>
-            </Section>
-            <Section id="bottomBarStyles" title="Footer Bottom Style" icon={<FaBorderAll />}>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Background</label>
-                <input type="color" value={targetBlock.bottomBarStyle?.backgroundColor || "#041b5c"} onChange={(e) => updateStyle("backgroundColor", e.target.value, "bottomBarStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Text Size ({targetBlock.bottomBarStyle?.fontSize || 12}px)</label>
-                <input type="range" min="8" max="24" value={targetBlock.bottomBarStyle?.fontSize || 12} onChange={(e) => updateStyle("fontSize", parseInt(e.target.value), "bottomBarStyle")} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
-              </div>
-              <div className="col-span-2 flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Border Top</label>
-                <div className="flex gap-2 items-center text-xs">
-                  <input type="color" value={targetBlock.bottomBarStyle?.borderColor || "rgba(255,255,255,0.1)"} onChange={(e) => updateStyle("borderColor", e.target.value, "bottomBarStyle")} className="w-8 h-8 rounded border-none p-0 cursor-pointer" />
-                  <input type="text" placeholder="1px solid rgba(255,255,255,0.1)" value={targetBlock.bottomBarStyle?.borderTop || "1px solid"} onChange={(e) => updateStyle("borderTop", e.target.value, "bottomBarStyle")} className="border rounded p-1 flex-1 h-8" />
-                </div>
-              </div>
-            </Section>
-          </>
-        )
-      }
-      {/* Link Section */}
-      <Section id="link" title="Link / Action" icon={<FaMousePointer />}>
-        <div className="col-span-2 flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-gray-400 uppercase">Block Link (URL)</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="https://example.com"
-              value={targetBlock?.style?.link || ""}
-              onChange={(e) => updateStyle("link", e.target.value)}
-              className="text-xs border rounded p-1 flex-1 h-8"
-            />
-            <select
-              value={targetBlock?.style?.linkTarget || "_self"}
-              onChange={(e) => updateStyle("linkTarget", e.target.value)}
-              className="text-xs border rounded p-1 w-24 h-8"
+  return (
+    <div className="mt-4 flex flex-col gap-2 scale-95 origin-top-left w-[105%]">
+      {config.map((section) => {
+        const isOpen = openSection === section.id;
+        return (
+          <div key={section.id} className="border border-gray-200 rounded-lg bg-white overflow-hidden mb-2 shadow-sm">
+            <button
+              onClick={() => setOpenSection(isOpen ? null : section.id)}
+              className={`w-full flex items-center justify-between p-3 transition text-xs font-bold uppercase tracking-wider ${isOpen ? 'bg-blue-50 text-blue-600' : 'bg-white hover:bg-gray-50 text-gray-700'}`}
             >
-              <option value="_self">Same Tab</option>
-              <option value="_blank">New Tab</option>
-            </select>
+              <div className="flex items-center gap-2">
+                {section.icon}
+                <span>{section.title}</span>
+              </div>
+              {isOpen ? <FaChevronUp /> : <FaChevronDown />}
+            </button>
+            {isOpen && (
+              <div className="p-3 grid grid-cols-2 gap-3 bg-gray-50/50">
+                {section.fields.map(field => renderField(field))}
+              </div>
+            )}
           </div>
-          <p className="text-[9px] text-gray-400 mt-1 italic italic">Apply a click action to the entire block.</p>
-        </div>
-      </Section>
-    </div >
+        );
+      })}
+    </div>
   );
 };
+
 
 const FooterBlockRenderer = ({ block, update, readOnly, isSelected, onSelect }) => {
   const style = block.style || {};
@@ -2733,6 +2290,7 @@ const FooterBlockRenderer = ({ block, update, readOnly, isSelected, onSelect }) 
 const InfoBoxRenderer = ({ block, update, readOnly }) => {
   const [showSettings, setShowSettings] = useState(false);
   const style = block.style || {};
+  console.log('style', style)
 
   const updateStyle = (key, value) => {
     update("style", { ...style, [key]: value });
@@ -2740,7 +2298,7 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
 
   const containerStyle = {
     ...getCommonStyles(block),
-    backgroundColor: style.backgroundColor || "#f3f4f6",
+    backgroundColor: style.backgroundColor || "#F6F6F7",
   };
 
   // Border Logic
@@ -2766,6 +2324,151 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
   const itemStyle = {
     // ... (unchanged)
   };
+
+  /* ======================================================
+     EMAIL SAFE VERSION (TABLE LAYOUT)
+  ====================================================== */
+  if (readOnly) {
+    let columns = style.columns ? parseInt(style.columns) : 1;
+    if (!style.columns && style.display === "grid" && style.gridTemplateColumns) {
+      const repeatMatch = style.gridTemplateColumns.match(/repeat\((\d+)/);
+      if (repeatMatch) {
+        columns = parseInt(repeatMatch[1]);
+      } else {
+        columns = style.gridTemplateColumns.split(" ").length || 1;
+      }
+    }
+    const columnWidths = getColumnWidths(style.gridTemplateColumns, columns); // Calculate widths
+    const items = block.items || [];
+    const rows = [];
+    for (let i = 0; i < items.length; i += columns) {
+      rows.push(items.slice(i, i + columns));
+    }
+
+    return (
+      <table
+        className={`block-component block-infoBox block-${block.id}`}
+        width="100%"
+        cellPadding="0"
+        cellSpacing="0"
+        border="0"
+        style={{
+          width: "100%",
+          backgroundColor: containerStyle.backgroundColor,
+          // Use styles from block.style directly
+          border: style.border || (containerStyle.border ? containerStyle.border : (hasExplicitTopWidth ? undefined : "1px solid #e5e7eb")),
+          borderTop: hasExplicitTopWidth ? `${borderTopWidth}px solid ${borderTopColor}` : containerStyle.borderTop,
+          borderRadius: containerStyle.borderRadius,
+          borderCollapse: "separate",
+          boxShadow: style.boxShadow,
+          tableLayout: columns > 1 ? "fixed" : "auto", // Apply fixed layout if multiple columns
+          // Add Margins
+          marginTop: containerStyle.marginTop,
+          marginBottom: containerStyle.marginBottom,
+          marginLeft: containerStyle.marginLeft,
+          marginRight: containerStyle.marginRight,
+        }}
+      >
+        <tbody>
+          {rows.map((rowItems, rowIndex) => (
+            <tr key={rowIndex}>
+              {rowItems.map((item, colIndex) => (
+                <td
+                  key={colIndex}
+                  width={columnWidths[colIndex % columns]} // Use calculated width
+                  valign="top"
+                  style={{
+                    padding: containerStyle.padding || "20px",
+                    borderBottom: "none",
+                  }}
+                >
+                  {item.link ? (
+                    <a
+                      href={item.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        textDecoration: "none",
+                        color: "inherit",
+                        display: "block",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontWeight: style.labelFontWeight || 800,
+                          fontSize: style.labelFontSize
+                            ? `${style.labelFontSize}px`
+                            : "14px",
+                          color: style.labelColor || "#34353B",
+                          marginBottom: "6px",
+                          fontFamily: style.fontFamily,
+                        }}
+                      >
+                        {item.label}
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: style.valueFontSize
+                            ? `${style.valueFontSize}px`
+                            : "14px",
+                          color: style.valueColor || "#111827",
+                          lineHeight: "1.5",
+                          fontFamily: style.fontFamily,
+                        }}
+                        dangerouslySetInnerHTML={{
+                          __html: item.value || "",
+                        }}
+                      />
+                    </a>
+                  ) : (
+                    <>
+                      <div
+                        style={{
+                          fontWeight: style.labelFontWeight || 800,
+                          fontSize: style.labelFontSize
+                            ? `${style.labelFontSize}px`
+                            : "14px",
+                          color: style.labelColor || "#34353B",
+                          marginBottom: "6px",
+                          fontFamily: style.fontFamily,
+                        }}
+                      >
+                        {item.label}
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: style.valueFontSize
+                            ? `${style.valueFontSize}px`
+                            : "14px",
+                          color: style.valueColor || "#111827",
+                          lineHeight: "1.5",
+                          fontFamily: style.fontFamily,
+                        }}
+                        dangerouslySetInnerHTML={{
+                          __html: item.value || "",
+                        }}
+                      />
+                    </>
+                  )}
+                </td>
+              ))}
+
+              {/* Fill Empty Columns */}
+              {rowItems.length < columns &&
+                Array.from({ length: columns - rowItems.length }).map(
+                  (_, i) => (
+                    <td key={`empty-${i}`} width={`${100 / columns}%`} />
+                  )
+                )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
 
   return (
     <div
@@ -2972,6 +2675,154 @@ const MultipleInfoBoxRenderer = ({ block, update, readOnly }) => {
   };
 
 
+
+  /* ======================================================
+     EMAIL SAFE VERSION (TABLE LAYOUT)
+  ====================================================== */
+  if (readOnly) {
+    const columns = style.columns ? parseInt(style.columns) : (style.display === "grid" && style.gridTemplateColumns ? (style.gridTemplateColumns.match(/repeat\((\d+)/)?.[1] || 1) : 1) || 1;
+    const boxRows = [];
+    const boxes = block.boxes || [];
+
+    // Chunk boxes into rows
+    for (let i = 0; i < boxes.length; i += columns) {
+      boxRows.push(boxes.slice(i, i + columns));
+    }
+
+    return (
+      <table
+        className={`block-component block-multipleInfoBox block-${block.id}`}
+        width="100%"
+        cellPadding="0"
+        cellSpacing="0"
+        border="0"
+        style={{
+          width: "100%",
+          backgroundColor: containerStyle.backgroundColor,
+          // Add Margins
+          marginTop: containerStyle.marginTop,
+          marginBottom: containerStyle.marginBottom,
+          marginLeft: containerStyle.marginLeft,
+          marginRight: containerStyle.marginRight,
+        }}
+      >
+        <tbody>
+          {boxRows.map((rowBoxes, rowIndex) => (
+            <tr key={rowIndex}>
+              {rowBoxes.map((box, colIndex) => {
+                const boxStyle = { ...globalBoxStyle, ...(box.style || {}) };
+                const borderTopWidth = boxStyle.borderTopWidth !== undefined ? boxStyle.borderTopWidth : boxStyle.topBorderWidth;
+                const borderTopColor = boxStyle.borderTopColor || boxStyle.topBorderColor || boxStyle.borderColor || "#10b981";
+                const hasTopBorder = borderTopWidth !== undefined && borderTopWidth > 0;
+
+                return (
+                  <td
+                    key={box.id}
+                    valign="top"
+                    width={`${100 / columns}%`}
+                    style={{
+                      padding: style.gap ? `${parseInt(style.gap) / 2}px` : "10px", // Simulate gap
+                    }}
+                  >
+                    <table
+                      width="100%"
+                      cellPadding="0"
+                      cellSpacing="0"
+                      border="0"
+                      style={{
+                        backgroundColor: boxStyle.backgroundColor,
+                        borderRadius: parseUnit(boxStyle.borderRadius) || "12px",
+                        // padding: parseUnit(boxStyle.padding) || "20px",  // Padding must be on TD for email clients often
+                        boxShadow: boxStyle.boxShadow || "0 2px 4px rgba(0,0,0,0.05)",
+                        border: boxStyle.border || (boxStyle.borderWidth ? `${boxStyle.borderWidth}px solid ${boxStyle.borderColor || "#eee"}` : "1px solid #eee"),
+                        borderTop: hasTopBorder ? `${borderTopWidth}px solid ${borderTopColor}` : undefined,
+                        borderCollapse: "separate"
+                      }}
+                    >
+                      <tbody>
+                        <tr>
+                          <td style={{ padding: parseUnit(boxStyle.padding) || "20px" }}>
+                            <table width="100%" cellPadding="0" cellSpacing="0" border="0" style={{ tableLayout: boxStyle.columns > 1 ? 'fixed' : 'auto' }}>
+                              <tbody>
+                                {/* Item Rows Logic */}
+                                {(() => {
+                                  const itemCols = boxStyle.columns || 1;
+                                  const itemRows = [];
+                                  const items = box.items || [];
+                                  for (let k = 0; k < items.length; k += itemCols) {
+                                    itemRows.push(items.slice(k, k + itemCols));
+                                  }
+
+                                  return itemRows.map((rItems, rIdx) => (
+                                    <tr key={rIdx}>
+                                      {rItems.map((item, cIdx) => {
+                                        const isLastInRow = (cIdx + 1) % itemCols === 0;
+                                        const isLastItem = (rIdx * itemCols) + cIdx === items.length - 1;
+                                        const showSeparator = boxStyle.showSeparators && !isLastInRow && !isLastItem;
+
+                                        return (
+                                          <td
+                                            key={cIdx}
+                                            width={`${100 / itemCols}%`}
+                                            valign="top"
+                                            style={{
+                                              paddingBottom: "12px",
+                                              borderRight: showSeparator ? `1px solid ${boxStyle.separatorColor || "#e5e7eb"}` : undefined,
+                                              paddingRight: showSeparator ? "16px" : undefined,
+                                              width: `${100 / itemCols}%` // Explicit width for fixed layout
+                                            }}
+                                          >
+                                            {/* Label */}
+                                            <div style={{
+                                              fontWeight: 700,
+                                              fontSize: "12px",
+                                              textTransform: "uppercase",
+                                              color: boxStyle.labelColor || style.textColor || "#6b7280",
+                                              marginBottom: boxStyle.itemLayout === 'inline' ? "0" : "2px",
+                                              display: boxStyle.itemLayout === 'inline' ? 'inline-block' : 'block',
+                                              width: boxStyle.itemLayout === 'inline' ? '40%' : 'auto',
+                                              verticalAlign: 'top',
+                                              // Add font family support
+                                              fontFamily: style.fontFamily,
+                                            }}>
+                                              {item.label}
+                                            </div>
+                                            {/* Value */}
+                                            <div style={{
+                                              fontSize: "14px",
+                                              color: boxStyle.valueColor || style.textColor || "#111827",
+                                              textAlign: boxStyle.itemLayout === 'inline' ? "right" : "left",
+                                              display: boxStyle.itemLayout === 'inline' ? 'inline-block' : 'block',
+                                              width: boxStyle.itemLayout === 'inline' ? '58%' : 'auto',
+                                              verticalAlign: 'top',
+                                              // Add font family support
+                                              fontFamily: style.fontFamily
+                                            }} dangerouslySetInnerHTML={{ __html: item.value || "" }} />
+                                          </td>
+                                        );
+                                      })}
+                                      {/* Fill empty */}
+                                      {rItems.length < itemCols && Array.from({ length: itemCols - rItems.length }).map((_, e) => <td key={e}></td>)}
+                                    </tr>
+                                  ));
+                                })()}
+                              </tbody>
+                            </table>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </td>
+                );
+              })}
+              {/* Fill empty box columns */}
+              {rowBoxes.length < columns && Array.from({ length: columns - rowBoxes.length }).map((_, e) => <td key={e}></td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
 
   return (
     <div
@@ -3647,7 +3498,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
           {/* Children Management */}
           <div style={readOnly ? { display: 'flex', flexDirection: 'column', gap: '24px', position: 'relative', zIndex: 10 } : {}} className={!readOnly ? "flex flex-col gap-6 relative z-10" : ""}>
             {(block.children || []).map((child) => (
-              <div key={child.id} style={readOnly ? { padding: '8px', border: '1px solid transparent' } : {}} className={!readOnly ? "relative group/child p-2 border border-transparent hover:border-blue-200 hover:bg-white/40 rounded-lg transition" : ""}>
+              <div key={child.id} style={readOnly ? { padding: '8px', border: '1px solid transparent' } : {}} className={`${!readOnly ? "relative group/child p-2 border border-transparent hover:border-blue-200 hover:bg-white/40 rounded-lg transition" : ""} block-component block-${child.type} block-${child.id}`}>
                 {!readOnly && (
                   <div className="absolute -top-3 -right-3 flex gap-1 z-20 opacity-0 group-hover/child:opacity-100 transition">
                     <button
@@ -3831,6 +3682,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
 
     // HEADING
     if (block?.type === "heading") {
+      console.log('fsdf1', block.style)
       return (
         <div style={{ ...getCommonStyles(block) }} className={`block-component block-${block.type} block-${block.id}`}>
           {readOnly ? (
@@ -3878,8 +3730,11 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
 
     // TEXT / PARAGRAPH
     if (block?.type === "text") {
+      console.log('fsdf', block.style)
+
       const textStyles = {
-        color: block.style?.textColor || "#000000",
+        margin: 0,
+        color: block.style?.textColor || "#5F5F6D",
         fontSize: block.style?.fontSize ? `${block?.style.fontSize}px` : "16px",
         fontWeight: block.style?.fontWeight || "normal",
         textAlign: block.style?.textAlign || "left",
@@ -3942,7 +3797,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     if (block?.type === "divider") {
       return (
         <div style={{ ...getCommonStyles(block) }} className={`block-component block-${block.type} block-${block.id}`}>
-          <hr style={{ borderTop: '2px solid #f3f4f6', margin: 0 }} className={!readOnly ? "border-t-2 border-gray-100" : ""} />
+          <hr style={{ borderTop: '2px solid #F6F6F7', margin: 0 }} className={!readOnly ? "border-t-2 border-gray-100" : ""} />
         </div>
       );
     }
@@ -3951,13 +3806,13 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
     // IMAGE (Original implementation with style support)
     if (block?.type === "image") {
       const imgStyles = {
-        width: block.style?.width || '100%',
+        width: block.style?.width ? '100%' : 'auto',
         maxWidth: block.style?.maxWidth || '100%',
         height: block.style?.height || 'auto',
         borderRadius: block.style?.borderRadius ? `${block.style.borderRadius}px` : (readOnly ? '12px' : undefined),
         objectFit: block.style?.objectFit || 'contain',
         display: 'block',
-        margin: '0 auto',
+        margin: block.style?.margin || '0 auto',
       };
 
       return (
@@ -3966,7 +3821,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
             <img
               src={block.url}
               style={imgStyles}
-              className={!readOnly ? "w-full mb-4" : ""}
+              className={!readOnly ? "mb-4" : ""}
             />
           )}
           {!readOnly && (
@@ -4061,11 +3916,16 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
               <tr>
                 {block.columns.map((col, i) => {
                   const colStyle = block.style?.columnStyles?.[i] || {};
+
+                  // Calculate Widths
+                  const widths = getColumnWidths(block.style?.gridTemplateColumns, block.columns.length);
+                  const width = widths[i] || `${100 / block.columns.length}%`;
+
                   return (
                     <td
                       key={i}
                       valign="top"
-                      width={`${100 / block.columns.length}%`}
+                      width={width}
                       style={{
                         ...colStyle,
                         backgroundColor: colStyle.backgroundColor,
@@ -4248,6 +4108,153 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
         : "200px";
 
       /* Refactored to use div structure for consistent rendering and style support */
+      /* EMAIL SAFE TABLE VERSION */
+      if (readOnly) {
+        const cols = columns && columns !== "auto" ? parseInt(columns) : 3; // Default to 3 for email if auto/undefined
+        const gap = block.style?.gap !== undefined ? block.style.gap : 16;
+        const cardRows = [];
+        const cards = block.cards || [];
+        for (let i = 0; i < cards.length; i += cols) {
+          cardRows.push(cards.slice(i, i + cols));
+        }
+
+        return (
+          <table
+            width="100%"
+            cellPadding="0"
+            cellSpacing="0"
+            border="0"
+            className={`block-component block-${block.type} block-${block.id} card-row`}
+            style={{
+              ...getCommonStyles(block),
+              display: 'table', // Override flex/grid
+              borderCollapse: 'separate'
+            }}
+          >
+            <tbody>
+              {cardRows.map((rowCards, rIdx) => (
+                <tr key={rIdx}>
+                  {rowCards.map((card, cIdx) => (
+                    <td
+                      key={card.id}
+                      valign="top"
+                      width={`${100 / cols}%`}
+                      style={{
+                        padding: `${gap / 2}px`, // Half gap simulation
+                      }}
+                    >
+                      <table
+                        width="100%"
+                        cellPadding="0"
+                        cellSpacing="0"
+                        border="0"
+                        style={{
+                          backgroundColor: block.cardStyle?.backgroundColor || card.style?.backgroundColor || "#ffffff",
+                          borderRadius: block.cardStyle?.borderRadius ? `${block.cardStyle.borderRadius}px` : (card.style?.borderRadius || "12px"),
+                          border: block.cardStyle?.border || `1px solid ${block.cardStyle?.borderColor || "#eee"}`,
+                          // boxShadow: block.cardStyle?.boxShadow || "0 2px 4px rgba(0,0,0,0.05)", // Shadows often ignored in email but good to have inline
+                          overflow: "hidden",
+                          borderCollapse: "separate"
+                        }}
+                      >
+                        <tbody>
+                          <tr>
+                            <td style={{
+                              padding: block.cardStyle?.padding ? `${block.cardStyle.padding}px` : (card.style?.padding || "16px"),
+                            }}>
+                              {/* Image */}
+                              {card.url && (
+                                <div style={{ marginBottom: parseUnit(block.cardImageStyle?.marginBottom) || "16px" }}>
+                                  {card.link ? (
+                                    <a href={card.link} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textDecoration: 'none' }}>
+                                      <img
+                                        src={card.url}
+                                        alt=""
+                                        style={{
+                                          width: parseUnit(block.cardImageStyle?.width) || "100%",
+                                          height: parseUnit(block.cardImageStyle?.height) || "128px",
+                                          objectFit: block.cardImageStyle?.objectFit || "cover",
+                                          borderRadius: parseUnit(block.cardImageStyle?.borderRadius) || "8px",
+                                          marginTop: parseUnit(block.cardImageStyle?.marginTop) || "0px",
+                                          margin: block.cardImageStyle?.margin || "0 auto",
+                                          display: "block"
+                                        }}
+                                      />
+                                    </a>
+                                  ) : (
+                                    <img
+                                      src={card.url}
+                                      alt=""
+                                      style={{
+                                        width: parseUnit(block.cardImageStyle?.width) || "100%",
+                                        height: parseUnit(block.cardImageStyle?.height) || "128px",
+                                        objectFit: block.cardImageStyle?.objectFit || "cover",
+                                        borderRadius: parseUnit(block.cardImageStyle?.borderRadius) || "8px",
+                                        marginTop: parseUnit(block.cardImageStyle?.marginTop) || "0px",
+                                        margin: block.cardImageStyle?.margin || "0 auto",
+                                        display: "block"
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Text Content */}
+                              {card.link ? (
+                                <a href={card.link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                                  <h4 style={{
+                                    margin: "0 0 4px 0",
+                                    fontSize: block.cardTitleStyle?.fontSize ? `${block.cardTitleStyle.fontSize}px` : "16px",
+                                    color: block.cardTitleStyle?.textColor || "#000000",
+                                    fontWeight: "bold",
+                                    textAlign: block.cardStyle?.textAlign || "left"
+                                  }}>
+                                    {card.title}
+                                  </h4>
+                                  <p style={{
+                                    margin: 0,
+                                    fontSize: block.cardDescStyle?.fontSize ? `${block.cardDescStyle.fontSize}px` : "14px",
+                                    color: block.cardDescStyle?.textColor || "#666",
+                                    textAlign: block.cardStyle?.textAlign || "left"
+                                  }}>
+                                    {card.description}
+                                  </p>
+                                </a>
+                              ) : (
+                                <>
+                                  <h4 style={{
+                                    margin: "0 0 4px 0",
+                                    fontSize: block.cardTitleStyle?.fontSize ? `${block.cardTitleStyle.fontSize}px` : "16px",
+                                    color: block.cardTitleStyle?.textColor || "#000000",
+                                    fontWeight: "bold",
+                                    textAlign: block.cardStyle?.textAlign || "left"
+                                  }}>
+                                    {card.title}
+                                  </h4>
+                                  <p style={{
+                                    margin: 0,
+                                    fontSize: block.cardDescStyle?.fontSize ? `${block.cardDescStyle.fontSize}px` : "14px",
+                                    color: block.cardDescStyle?.textColor || "#666",
+                                    textAlign: block.cardStyle?.textAlign || "left"
+                                  }}>
+                                    {card.description}
+                                  </p>
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </td>
+                  ))}
+                  {/* Fill Empty */}
+                  {rowCards.length < cols && Array.from({ length: cols - rowCards.length }).map((_, e) => <td key={e}></td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+      }
 
       return (
         <div
