@@ -30,6 +30,17 @@ const VARIABLE_OPTIONS = [
   { label: "Link", value: "{{Link}}" },
 ];
 
+// ✅ Helper to ensure units are valid
+const parseUnit = (val) => {
+  if (!val) return undefined;
+  const str = String(val);
+  if (str === "0") return "0px";
+  if (str.endsWith("px") || str.endsWith("%") || str.endsWith("rem") || str.endsWith("em") || str.endsWith("vh") || str.endsWith("vw")) {
+    return str;
+  }
+  return !isNaN(parseFloat(str)) ? `${str}px` : str;
+};
+
 const convertHtmlToBlocks = (html) => {
   if (!html) return [];
   const parser = new DOMParser();
@@ -43,8 +54,10 @@ const convertHtmlToBlocks = (html) => {
       if (s.backgroundColor) style.backgroundColor = s.backgroundColor;
       if (s.color) style.textColor = s.color;
       if (s.textAlign) style.textAlign = s.textAlign;
+
       if (s.padding) style.padding = parseInt(s.padding) || 0;
-      if (s.fontSize) style.fontSize = parseInt(s.fontSize);
+      // Use parseUnit for fontSize to handle px, rem, etc.
+      if (s.fontSize) style.fontSize = parseUnit(s.fontSize);
       if (s.fontWeight) style.fontWeight = s.fontWeight;
       if (s.borderRadius) style.borderRadius = parseInt(s.borderRadius) || 0;
       if (s.fontFamily) style.fontFamily = s.fontFamily.replace(/["']/g, "");
@@ -61,15 +74,15 @@ const convertHtmlToBlocks = (html) => {
         style.borderTopWidth = width;
         style.topBorderWidth = width; // Alias for renderer
       } else if (s.borderTop) {
-         // Manual parsing of "4px solid rgb(...)"
-         const parts = s.borderTop.split(" ");
-         if (parts.length >= 1) {
-            const width = parseInt(parts[0]);
-            if (!isNaN(width)) {
-               style.borderTopWidth = width;
-               style.topBorderWidth = width;
-            }
-         }
+        // Manual parsing of "4px solid rgb(...)"
+        const parts = s.borderTop.split(" ");
+        if (parts.length >= 1) {
+          const width = parseInt(parts[0]);
+          if (!isNaN(width)) {
+            style.borderTopWidth = width;
+            style.topBorderWidth = width;
+          }
+        }
       }
 
       if (s.border) style.border = s.border;
@@ -77,14 +90,29 @@ const convertHtmlToBlocks = (html) => {
       if (s.borderWidth) style.borderWidth = parseInt(s.borderWidth) || 0;
 
       if (s.width) style.width = s.width;
+      // ✅ Capture max-width properly
+      if (s.maxWidth) style.maxWidth = s.maxWidth;
       if (s.height) style.height = s.height;
       if (s.boxShadow) style.boxShadow = s.boxShadow;
       if (s.textShadow) style.textShadow = s.textShadow;
-      if (s.marginTop) style.marginTop = parseInt(s.marginTop) || 0;
-      if (s.marginBottom) style.marginBottom = parseInt(s.marginBottom) || 0;
-      if (s.marginLeft) style.marginLeft = parseInt(s.marginLeft) || 0;
-      if (s.marginRight) style.marginRight = parseInt(s.marginRight) || 0;
-      if (s.margin) style.margin = s.margin; // Shorthand for alignment
+
+      const parseMargin = (val) => {
+        if (!val) return undefined;
+        if (val === "auto") return "auto";
+        const intVal = parseInt(val);
+        return isNaN(intVal) ? val : intVal;
+      };
+
+      if (s.marginTop) style.marginTop = parseMargin(s.marginTop);
+      if (s.marginBottom) style.marginBottom = parseMargin(s.marginBottom);
+      if (s.marginLeft) style.marginLeft = parseMargin(s.marginLeft);
+      if (s.marginRight) style.marginRight = parseMargin(s.marginRight);
+      // ✅ Handle margin shorthand
+      if (s.margin) {
+        // Simple check for "auto" keyword
+        if (s.margin.includes("auto")) style.margin = s.margin;
+        else style.margin = s.margin; // Keep original
+      }
 
       if (s.padding) style.padding = parseInt(s.padding) || 0;
       if (s.paddingTop) style.paddingTop = parseInt(s.paddingTop) || 0;
@@ -180,12 +208,12 @@ const convertHtmlToBlocks = (html) => {
           const img = node.querySelector("img");
           let imgStyle = {};
           if (img) {
-             const s = extractStyles(img);
-             // Merge critical image styles that might be on the img tag instead of wrapper
-             if (s.width) imgStyle.width = s.width;
-             if (s.maxWidth) imgStyle.maxWidth = s.maxWidth;
-             if (s.borderRadius) imgStyle.borderRadius = s.borderRadius;
-             if (s.objectFit) imgStyle.objectFit = s.objectFit;
+            const s = extractStyles(img);
+            // Merge critical image styles that might be on the img tag instead of wrapper
+            if (s.width) imgStyle.width = s.width;
+            if (s.maxWidth) imgStyle.maxWidth = s.maxWidth;
+            if (s.borderRadius) imgStyle.borderRadius = s.borderRadius;
+            if (s.objectFit) imgStyle.objectFit = s.objectFit;
           }
           return createBlock("image", {
             url: img ? img.getAttribute("src") : "",
@@ -596,12 +624,12 @@ const convertHtmlToBlocks = (html) => {
               } else if (divs.length >= 2) {
                 const labelDiv = divs[0];
                 const valueDiv = divs[1];
-                
+
                 // Extract styles from label/value if needed? 
                 // Currently InfoBoxRenderer uses block-level styles for label/value font size/color.
                 // But if the HTML has specific styles on these divs, we might want to capture them?
                 // For now, let's just ensure we get the content correctly.
-                
+
                 const label = labelDiv.innerText;
                 const value = valueDiv.innerHTML;
                 items.push({ label, value });
@@ -609,15 +637,15 @@ const convertHtmlToBlocks = (html) => {
                 // Fallback check for basic text content if structure is loose
               }
             });
-            
+
             // Infer grid columns from table structure
             if (node.rows.length > 0) {
-               const colCount = node.rows[0].cells.length;
-               if (colCount > 1) {
-                  nodeStyle.display = "grid";
-                  nodeStyle.gridTemplateColumns = `repeat(${colCount}, minmax(0, 1fr))`;
-                  nodeStyle.gap = 16; // Default gap for grid view
-               }
+              const colCount = node.rows[0].cells.length;
+              if (colCount > 1) {
+                nodeStyle.display = "grid";
+                nodeStyle.gridTemplateColumns = `repeat(${colCount}, minmax(0, 1fr))`;
+                nodeStyle.gap = 16; // Default gap for grid view
+              }
             }
           } else {
             // DEFAULT / DIV Logic
@@ -1390,29 +1418,34 @@ const TextEditor = ({ value, onChange, style, placeholder, readOnly, id }) => {
   }
 
   return (
-    <div id={`editor-${id}`} className="p-2 border border-dashed border-gray-200 rounded-lg min-h-[100px] bg-white hover:border-blue-400 transition" onBlur={handleBlur}>
+    <div id={`editor-${id}`} className="p-2 border border-dashed border-gray-200 rounded-lg min-h-[100px] hover:border-blue-400 transition" onBlur={handleBlur}>
       <ReactQuill
         theme="snow"
         value={localValue}
         onChange={handleChange}
         placeholder={placeholder}
         modules={modules}
+        style={{
+          ...style
+        }}
       />
+
       <style>
         {`
-          #editor-${id} .ql-editor {
-            color: ${style.color} !important;
-            font-size: ${style.fontSize} !important;
-            font-weight: ${style.fontWeight} !important;
-            text-align: ${style.textAlign} !important;
-            font-family: ${style.fontFamily} !important;
-            line-height: ${style.lineHeight} !important;
-            letter-spacing: ${style.letterSpacing} !important;
-            text-decoration: ${style.textDecoration} !important;
-            text-transform: ${style.textTransform} !important;
-          }
-        `}
+    #editor-${id} .ql-editor {
+      color: ${style?.color || "#5F5F6D"} !important;
+      font-size: ${style?.fontSize || "16px"} !important;
+      font-weight: ${style?.fontWeight || "normal"} !important;
+      text-align: ${style?.textAlign || "left"} !important;
+      font-family: ${style?.fontFamily || "inherit"} !important;
+      line-height: ${style?.lineHeight || "1.6"} !important;
+      letter-spacing: ${style?.letterSpacing || "normal"} !important;
+      text-decoration: ${style?.textDecoration || "none"} !important;
+      text-transform: ${style?.textTransform || "none"} !important;
+    }
+  `}
       </style>
+
     </div>
   );
 };
@@ -1426,12 +1459,12 @@ const modules = {
   ],
 };
 
-const parseUnit = (val) => {
-  if (val === undefined || val === null || val === "" || Number.isNaN(val)) return undefined;
-  if (typeof val === "number") return `${val}px`;
-  if (typeof val === "string" && /^-?\d+(\.\d+)?$/.test(val.trim())) return `${val.trim()}px`;
-  return val;
-};
+// const parseUnit = (val) => {
+//   if (val === undefined || val === null || val === "" || Number.isNaN(val)) return undefined;
+//   if (typeof val === "number") return `${val}px`;
+//   if (typeof val === "string" && /^-?\d+(\.\d+)?$/.test(val.trim())) return `${val.trim()}px`;
+//   return val;
+// };
 
 const getCommonStyles = (b) => {
   if (!b || !b.style) return {};
@@ -1442,8 +1475,11 @@ const getCommonStyles = (b) => {
     maxWidth: b.type !== "image" ? s.maxWidth || "100%" : "none",
     height: s.height || "auto",
     minHeight: parseUnit(s.minHeight),
+    margin: s.margin || undefined,
     marginTop: parseUnit(s.marginTop),
     marginBottom: parseUnit(s.marginBottom),
+    marginLeft: parseUnit(s.marginLeft),
+    marginRight: parseUnit(s.marginRight),
     padding: parseUnit(s.padding),
     backgroundColor: s.backgroundColor,
     backgroundImage: s.backgroundImage || "none",
@@ -1688,6 +1724,8 @@ const STYLE_GROUPS = {
     id: `image-${path || 'root'}`, title: "Image Style", icon: <FaImage />,
     fields: [
       { label: "Fit", key: "objectFit", type: "select", path, options: [{ label: "Cover", value: "cover" }, { label: "Contain", value: "contain" }, { label: "Fill", value: "fill" }] },
+      { label: "Width", key: "width", type: "text", path, placeholder: "100% or 200px" },
+      { label: "Height", key: "height", type: "text", path, placeholder: "128px or auto" },
       { label: "Radius", key: "borderRadius", type: "range", min: 0, max: 50, path, suffix: "px" },
       { label: "Alignment", key: "margin", type: "align-margin", path },
     ]
@@ -1698,6 +1736,7 @@ const STYLE_GROUPS = {
       { label: "Columns", key: "columns", type: "select", path, options: [{ label: "Auto", value: "auto" }, { label: "1", value: "1" }, { label: "2", value: "2" }, { label: "3", value: "3" }, { label: "4", value: "4" }] },
       { label: "Gap", key: "gap", type: "range", min: 0, max: 100, path, suffix: "px" },
       { label: "Align Items", key: "alignItems", type: "select", path, options: [{ label: "Stretch", value: "stretch" }, { label: "Center", value: "center" }, { label: "Start", value: "flex-start" }, { label: "End", value: "flex-end" }] },
+      { label: "Justify Content", key: "justifyContent", type: "select", path, options: [{ label: "Start", value: "start" }, { label: "Center", value: "center" }, { label: "End", value: "end" }, { label: "Space Between", value: "space-between" }] },
     ]
   }),
   link: (path = "style") => ({
@@ -1714,6 +1753,17 @@ const getStyleConfig = (block) => {
 
   // Common styles for almost everyone
   if (block.type === "text" || block.type === "heading" || block.type === "btn") {
+    config.push(STYLE_GROUPS.layout("style"));
+
+    if (block.type === "text") {
+      config.push({
+        id: `blockAlign-${block.id}`, title: "Block Alignment", icon: <FaAlignJustify />,
+        fields: [
+          { label: "Alignment", key: "margin", type: "align-margin", path: "style" }
+        ]
+      });
+    }
+
     config.push(STYLE_GROUPS.typography("style"));
     config.push(STYLE_GROUPS.spacing("style"));
     config.push(STYLE_GROUPS.appearance("style"));
@@ -1732,7 +1782,7 @@ const getStyleConfig = (block) => {
     config.push(STYLE_GROUPS.spacing("style"));
   }
 
-  if (block.type === "cardRow" || block.type === "multipleInfoBox") {
+  if (block.type === "cardRow") {
     config.push(STYLE_GROUPS.grid("style")); // Grid Layout
     config.push(STYLE_GROUPS.appearance("cardStyle", "Card Style")); // Card Appearance
     config.push(STYLE_GROUPS.image("cardImageStyle")); // Image Style
@@ -1743,12 +1793,14 @@ const getStyleConfig = (block) => {
   if (block.type === "multipleInfoBox") {
     const unitStyle = STYLE_GROUPS.appearance("boxStyle", "Unit Style");
     // Add specific fields for multipleInfoBox unit style
-    unitStyle.fields.push({ label: "Items per Row", key: "columns", type: "select", path: "boxStyle", options: [{ label: "1", value: "1" }, { label: "2", value: "2" }] });
-    unitStyle.fields.push({ label: "Item Layout", key: "itemLayout", type: "select", path: "boxStyle", options: [{ label: "Stacked", value: "stacked" }, { label: "Inline", value: "inline" }] });
+    unitStyle.fields.push({ label: "Items per Row", key: "boxColumns", type: "select", path: true, options: [{ label: "1", value: "1" }, { label: "2", value: "2" }] });
+    unitStyle.fields.push({ label: "Item Layout", key: "boxItemLayout", type: "select", path: true, options: [{ label: "Stacked", value: "stacked" }, { label: "Inline", value: "inline" }] });
     // Add separator color
-    unitStyle.fields.push({ label: "Separator Color", key: "separatorColor", type: "color", path: "boxStyle" });
+    unitStyle.fields.push({ label: "Separator Color", key: "boxSeparatorColor", type: "color", path: true });
 
     config.push(STYLE_GROUPS.layout("style")); // Added Layout
+    config.push(STYLE_GROUPS.grid("style")); // Added Grid Controls
+    config.push(STYLE_GROUPS.appearance("style")); // Added Container Appearance (BG, Border, Shadow)
     config.push(STYLE_GROUPS.spacing("style")); // Added Spacing
     config.push(unitStyle);
     config.push(STYLE_GROUPS.typography("boxStyle", "Text Colors")); // Reusing typography group for colors/fonts
@@ -2645,16 +2697,28 @@ const InfoBoxRenderer = ({ block, update, readOnly }) => {
 
 const MultipleInfoBoxRenderer = ({ block, update, readOnly }) => {
   const style = block.style || {};
-  const globalBoxStyle = block.boxStyle || {};
+  // Fallback to old values for backward compatibility
+  const globalBoxStyle = {
+    ...block.boxStyle, // Old way
+    columns: block.boxColumns || block.boxStyle?.columns,
+    itemLayout: block.boxItemLayout || block.boxStyle?.itemLayout,
+    separatorColor: block.boxSeparatorColor || block.boxStyle?.separatorColor,
+    padding: block.boxStyle?.padding, // Still in boxStyle if set previously
+    backgroundColor: block.boxStyle?.backgroundColor,
+    borderRadius: block.boxStyle?.borderRadius,
+    border: block.boxStyle?.border,
+    boxShadow: block.boxStyle?.boxShadow,
+    // Add other fields that might be split later if needed, but for now critical ones are mapped
+  };
 
-  const isGrid = style.display === "grid";
+  const isGrid = !style.display || style.display === "grid";
   const isFlex = style.display === "flex";
 
   const containerStyle = {
     ...getCommonStyles(block),
     display: style.display || "grid",
     // Grid Props
-    gridTemplateColumns: isGrid ? (style.gridTemplateColumns || `repeat(${style.columns || 1}, minmax(0, 1fr))`) : undefined,
+    gridTemplateColumns: isGrid ? (style.gridTemplateColumns || `repeat(${(!style.columns || style.columns === "auto") ? 1 : style.columns}, minmax(0, 1fr))`) : undefined,
     gap: style.gap ? `${style.gap}px` : "16px",
     // Flex Props
     flexDirection: isFlex ? (style.flexDirection || "row") : undefined,
@@ -3768,14 +3832,13 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
       console.log('fsdf', block.style)
 
       const textStyles = {
-        margin: 0,
-        color: block.style?.textColor || "#5F5F6D",
-        fontSize: block.style?.fontSize ? `${block?.style.fontSize}px` : "16px",
+        color: "#5F5F6D" || "#5F5F6D",
+        fontSize: parseUnit(block.style?.fontSize) || "16px",
         fontWeight: block.style?.fontWeight || "normal",
         textAlign: block.style?.textAlign || "left",
         fontFamily: block.style?.fontFamily || "inherit",
         lineHeight: block.style?.lineHeight || "1.6",
-        letterSpacing: block.style?.letterSpacing || "normal",
+        letterSpacing: parseUnit(block.style?.letterSpacing) || "normal",
         textDecoration: block.style?.textDecoration || "none",
         textTransform: block.style?.textTransform || "none",
       };
@@ -3786,6 +3849,8 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
             id={block.id}
             readOnly={readOnly}
             value={block.content}
+            contentStyle={{ color: textStyles.color }}
+
             onChange={(val) => update("content", val)}
             style={textStyles}
             placeholder="Enter text..."
@@ -4242,7 +4307,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                                     fontSize: block.cardTitleStyle?.fontSize ? `${block.cardTitleStyle.fontSize}px` : "16px",
                                     color: block.cardTitleStyle?.textColor || "#000000",
                                     fontWeight: "bold",
-                                    textAlign: block.cardStyle?.textAlign || "left"
+                                    textAlign: block.cardTitleStyle?.textAlign || block.cardStyle?.textAlign || "left"
                                   }}>
                                     {card.title}
                                   </h4>
@@ -4250,7 +4315,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                                     margin: 0,
                                     fontSize: block.cardDescStyle?.fontSize ? `${block.cardDescStyle.fontSize}px` : "14px",
                                     color: block.cardDescStyle?.textColor || "#666",
-                                    textAlign: block.cardStyle?.textAlign || "left"
+                                    textAlign: block.cardDescStyle?.textAlign || block.cardStyle?.textAlign || "left"
                                   }}>
                                     {card.description}
                                   </p>
@@ -4262,7 +4327,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                                     fontSize: block.cardTitleStyle?.fontSize ? `${block.cardTitleStyle.fontSize}px` : "16px",
                                     color: block.cardTitleStyle?.textColor || "#000000",
                                     fontWeight: "bold",
-                                    textAlign: block.cardStyle?.textAlign || "left"
+                                    textAlign: block.cardTitleStyle?.textAlign || block.cardStyle?.textAlign || "left"
                                   }}>
                                     {card.title}
                                   </h4>
@@ -4270,7 +4335,7 @@ export default function BlockRenderer({ block, blocks, setBlocks, readOnly = fal
                                     margin: 0,
                                     fontSize: block.cardDescStyle?.fontSize ? `${block.cardDescStyle.fontSize}px` : "14px",
                                     color: block.cardDescStyle?.textColor || "#666",
-                                    textAlign: block.cardStyle?.textAlign || "left"
+                                    textAlign: block.cardDescStyle?.textAlign || block.cardStyle?.textAlign || "left"
                                   }}>
                                     {card.description}
                                   </p>

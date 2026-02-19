@@ -106,7 +106,7 @@ export default function CreateTemplateSteps() {
                     const found = templateCategories.find(c => c.id === id);
                     return found?.category || "";
                 }),
-                tags: t.tags || "",
+                tags: (() => { try { return JSON.parse(t.tags) || ""; } catch { return ""; } })(),
             });
 
             // ✅ 4. Prefill Email Builder
@@ -205,9 +205,9 @@ export default function CreateTemplateSteps() {
 
         const payload = {
             mode_of_communication: communicationMode.value,
-            template_category_id: [form.category],
+            template_category_id: form.category,
             title: form.title,
-            tags: form.tags,
+            tags: JSON.stringify(form.tags),
             sender_name: textform.sender,
             content: {
                 blocks: [
@@ -230,9 +230,9 @@ export default function CreateTemplateSteps() {
 
         const payload = {
             mode_of_communication: communicationMode.value,
-            template_category_id: [form.category],
+            template_category_id: form.category,
             title: form.title,
-            tags: form.tags,
+            tags: JSON.stringify(form.tags),
             sender_name: textform.sender,
             content: {
                 blocks: [
